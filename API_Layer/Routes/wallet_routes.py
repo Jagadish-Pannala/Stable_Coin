@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 from Business_Layer.wallet_service import WalletService
-from ..Interfaces.wallet_interface import CreateWalletResponse, BalanceResponse, TransferRequest
+from ..Interfaces.wallet_interface import CreateWalletResponse, BalanceResponse, TransferRequest, FaucetRequest, FaucetResponse
 
 router = APIRouter()
 service = WalletService()
@@ -21,6 +21,20 @@ def list_wallets():
 @router.get("/balance/{address}", response_model=BalanceResponse)
 def balance(address: str):
     return service.check_balance(address)
+
+@router.post("/free-tokens/{address}", response_model=FaucetResponse)
+def create_free_tokens(request: FaucetRequest):
+    try:
+        result= service.create_free_tokens(request)
+        return FaucetResponse(
+            success=True,
+            tx_hash=result["tx_hash"],
+            message="Faucet successful"
+        )
+    except Exception as e:
+        return str(e)
+
+
 
 @router.post("/transfer")
 def transfer(req: TransferRequest):

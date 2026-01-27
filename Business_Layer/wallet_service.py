@@ -4,6 +4,8 @@ from web3 import Web3
 from utils.web3_client import Web3Client
 from storage.wallet_repository import WalletRepository
 from API_Layer.Interfaces.wallet_interface import BalanceResponse, TransferRequest
+from dotenv import load_dotenv
+import os
 
 ERC20_ABI = [
     {"constant": True, "inputs": [{"name": "_owner", "type": "address"}],
@@ -94,6 +96,49 @@ class WalletService:
         except Exception as e:
             raise HTTPException(status_code=500, detail=str(e))
 
+    def create_free_tokens(self, request):
+        load_dotenv()
+        from_address = os.getenv("MAIN_WALLET_ADDRESS")
+        private_key = os.getenv("PRIVATE_KEY")
+        if not self.web3.is_address(request.address):
+            raise HTTPException(400, "Invalid address")
+        to_address = self.web3.to_checksum_address(request.address)
+        if request.amount>1000:
+            raise ValueError("Amount exceeds faucet limit of 1000 tokens")
+        nonce = self.web3.eth.get_transaction_count(from_address)
+
+        if request.type.upper() == "ETH":
+            tx = {
+                "nonce": nonce,
+                "to": to_address,
+                "value": self.web3.to_wei(request.amount, "ether"),
+                "gas": 21000,
+                "gasPrice": self.web3.eth.gas_price,
+                "chainId": self.web3.eth.chain_id
+            }
+
+        elif request.type.upper() == "USDC":
+            decimals = self.usdc_contract.functions.decimals().call()
+            amount = int(request.amount * (10 ** decimals))
+            tx = self.usdc_contract.functions.transfer(
+                to_address, amount
+            ).build_transaction({
+                "from": from_address,
+                "nonce": nonce,
+                "gas": 100000,
+                "gasPrice": self.web3.eth.gas_price,
+                "chainId": self.web3.eth.chain_id
+            })
+        else:
+            raise HTTPException(400, "Unsupported asset")
+
+        signed = self.web3.eth.account.sign_transaction(tx, private_key)
+        tx_hash = self.web3.eth.send_raw_transaction(signed.raw_transaction)
+
+        return {"tx_hash": tx_hash.hex(), "status": "submitted"}
+
+
+
 
     def transfer(self, req: TransferRequest):
         from_addr = self.web3.to_checksum_address(req.from_address)
@@ -131,6 +176,6 @@ class WalletService:
             raise HTTPException(400, "Unsupported asset")
 
         signed = self.web3.eth.account.sign_transaction(tx, req.private_key)
-        tx_hash = self.web3.eth.send_raw_transaction(signed.rawTransaction)
+        tx_hash = self.web3.eth.send_raw_transaction(signed.raw_transaction)
 
         return {"tx_hash": tx_hash.hex(), "status": "submitted"}

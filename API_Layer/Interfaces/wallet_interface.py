@@ -12,7 +12,13 @@ class CreateWalletResponse(BaseModel):
 
 class FaucetRequest(BaseModel):
     address: str
+    type:Optional[str] = "ETH"
     amount: Optional[float] = 1.0
+
+class FaucetResponse(BaseModel):
+    success: bool
+    tx_hash: str
+    message: str
 
 class TransferRequest(BaseModel):
     from_address: str
