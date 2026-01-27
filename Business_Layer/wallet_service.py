@@ -132,8 +132,16 @@ class WalletService:
         else:
             raise HTTPException(400, "Unsupported asset")
 
-        signed = self.web3.eth.account.sign_transaction(tx, private_key)
-        tx_hash = self.web3.eth.send_raw_transaction(signed.raw_transaction)
+        signed_tx = self.web3.eth.account.sign_transaction(tx, private_key)
+
+        raw_tx = (
+            signed_tx.raw_transaction
+            if hasattr(signed_tx, "raw_transaction")
+            else signed_tx.rawTransaction
+        )
+
+        tx_hash = self.web3.eth.send_raw_transaction(raw_tx)
+
 
         return {"tx_hash": tx_hash.hex(), "status": "submitted"}
 
@@ -175,7 +183,14 @@ class WalletService:
         else:
             raise HTTPException(400, "Unsupported asset")
 
-        signed = self.web3.eth.account.sign_transaction(tx, req.private_key)
-        tx_hash = self.web3.eth.send_raw_transaction(signed.raw_transaction)
+        signed_tx = self.web3.eth.account.sign_transaction(tx, req.private_key)
+
+        raw_tx = (
+            signed_tx.raw_transaction
+            if hasattr(signed_tx, "raw_transaction")
+            else signed_tx.rawTransaction
+        )
+
+        tx_hash = self.web3.eth.send_raw_transaction(raw_tx)
 
         return {"tx_hash": tx_hash.hex(), "status": "submitted"}
