@@ -1,5 +1,6 @@
 import re
 from passlib.context import CryptContext
+from sqlalchemy.orm import Session
 
 from DataAccess_Layer.dao.user_authentication import UserAuthDAO
 from DataAccess_Layer.utils.database import set_db_session, remove_db_session
@@ -10,8 +11,8 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
 class AuthenticationService:
-    def __init__(self):
-        self.db = set_db_session()
+    def __init__(self,db: Session):
+        self.db = db
         self.user_dao = UserAuthDAO(self.db)
 
     def __del__(self):

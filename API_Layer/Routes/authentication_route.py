@@ -1,5 +1,6 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from fastapi.concurrency import run_in_threadpool
+from sqlalchemy.orm import Session
 
 from ..Interfaces.authentication import (
     RegisterRequest,
@@ -11,13 +12,18 @@ from ..Interfaces.authentication import (
 )
 
 from Business_Layer.authentication_service import AuthenticationService
+from DataAccess_Layer.utils.session import get_db 
 
 router = APIRouter()
-service = AuthenticationService()
 
 
 @router.post("/register", response_model=RegisterResponse)
-async def register_user(request: RegisterRequest):
+async def register_user(
+    request: RegisterRequest,
+    db: Session = Depends(get_db)
+):
+    service = AuthenticationService(db)
+
     try:
         new_user = await run_in_threadpool(
             service.register_user,
@@ -40,7 +46,12 @@ async def register_user(request: RegisterRequest):
 
 
 @router.post("/login", response_model=LoginResponse)
-async def login_user(request: LoginRequest):
+async def login_user(
+    request: LoginRequest,
+    db: Session = Depends(get_db)
+):
+    service = AuthenticationService(db)
+
     user = await run_in_threadpool(
         service.authenticate_user,
         request.username,
@@ -61,7 +72,12 @@ async def login_user(request: LoginRequest):
 
 
 @router.post("/update-password", response_model=UpdatePasswordResponse)
-async def update_password(request: UpdatePasswordRequest):
+async def update_password(
+    request: UpdatePasswordRequest,
+    db: Session = Depends(get_db)
+):
+    service = AuthenticationService(db)
+
     try:
         await run_in_threadpool(
             service.update_password_by_mail,
@@ -82,7 +98,12 @@ async def update_password(request: UpdatePasswordRequest):
 
 
 @router.get("/{user_id}")
-async def get_user_details(user_id: int):
+async def get_user_details(
+    user_id: int,
+    db: Session = Depends(get_db)
+):
+    service = AuthenticationService(db)
+
     user = await run_in_threadpool(
         service.user_dao.get_user_by_id,
         user_id
