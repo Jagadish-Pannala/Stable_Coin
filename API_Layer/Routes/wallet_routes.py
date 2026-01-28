@@ -1,6 +1,8 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from Business_Layer.wallet_service import WalletService
 from ..Interfaces.wallet_interface import CreateWalletResponse, BalanceResponse, TransferRequest, FaucetRequest, FaucetResponse
+from sqlalchemy.orm import Session
+from DataAccess_Layer.utils.session import get_db 
 
 router = APIRouter()
 service = WalletService()
@@ -15,8 +17,8 @@ def create_wallet():
         message="Wallet created"
     )
 @router.get("/list-wallets")
-def list_wallets():
-    return service.list_wallets()
+def list_wallets(db: Session = Depends(get_db)):
+    return service.list_wallets(db)
 
 @router.get("/balance/{address}", response_model=BalanceResponse)
 def balance(address: str):

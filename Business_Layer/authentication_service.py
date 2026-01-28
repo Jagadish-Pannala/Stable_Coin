@@ -5,7 +5,7 @@ import hashlib
 from passlib.hash import bcrypt
 from DataAccess_Layer.dao.user_authentication import UserAuthDAO
 from DataAccess_Layer.utils.database import set_db_session, remove_db_session
-from Business_Layer.wallet_service import WalletService
+from eth_account import Account
 
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -68,7 +68,7 @@ class AuthenticationService:
 
         hashed_password = self._hash_password(password)
 
-        acc = WalletService().create_wallet()
+        acc = Account.create()
 
         new_user = self.user_dao.create_user(
             mail=mail,
@@ -128,4 +128,7 @@ class AuthenticationService:
         )
 
         return updated_user
+    
+    def get_users(self):
+        return self.user_dao.get_all_users()
 

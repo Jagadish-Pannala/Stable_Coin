@@ -5,7 +5,9 @@ from utils.web3_client import Web3Client
 from storage.wallet_repository import WalletRepository
 from API_Layer.Interfaces.wallet_interface import BalanceResponse, TransferRequest
 from dotenv import load_dotenv
+from .authentication_service import AuthenticationService
 import os
+from DataAccess_Layer.utils.session import get_db
 
 ERC20_ABI = [
     {"constant": True, "inputs": [{"name": "_owner", "type": "address"}],
@@ -55,13 +57,15 @@ class WalletService:
             balance_eth=float(balance_eth),
             balance_usdc=float(usdc)
         )
-    def list_wallets(self):
+    
+    def list_wallets(self, db):
         """
         List all wallets stored in wallets.json
         (private keys are NEVER exposed)
         """
         try:
-            wallets = self.repo.load()
+            users = AuthenticationService(db).get_users()
+            wallets = [{"user_id": u.user_id, "email": u.mail, "address": u.wallet_address} for u in users]
             safe_wallets = []
 
             for w in wallets:
@@ -82,8 +86,9 @@ class WalletService:
                     usdc_balance = 0.0
 
                 safe_wallets.append({
+                    "user_id": w["user_id"],
+                    "email": w["email"],
                     "address": w["address"],
-                    "created_at": w.get("created_at", "unknown"),
                     "balance_eth": eth_balance,
                     "balance_usdc": float(usdc_balance)
                 })
