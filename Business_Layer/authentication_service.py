@@ -1,7 +1,8 @@
 import re
 from passlib.context import CryptContext
 from sqlalchemy.orm import Session
-
+import hashlib
+from passlib.hash import bcrypt
 from DataAccess_Layer.dao.user_authentication import UserAuthDAO
 from DataAccess_Layer.utils.database import set_db_session, remove_db_session
 from Business_Layer.wallet_service import WalletService
@@ -37,11 +38,17 @@ class AuthenticationService:
             return False
         return True
 
-    def _hash_password(self, password: str) -> str:
-        return pwd_context.hash(password)
+    
+ 
+    def _hash_password(self,password: str) -> str:
+        # Step 1: Pre-hash
+        sha = hashlib.sha256(password.encode("utf-8")).digest()
+        # Step 2: bcrypt the result
+        return bcrypt.hash(sha)
 
     def _verify_password(self, plain_password: str, hashed_password: str) -> bool:
-        return pwd_context.verify(plain_password, hashed_password)
+        sha = hashlib.sha256(plain_password.encode("utf-8")).digest()
+        return pwd_context.verify(sha, hashed_password)
 
     # ------------------ public APIs ------------------
 
