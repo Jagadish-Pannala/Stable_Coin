@@ -9,6 +9,7 @@ class LoginResponse(BaseModel):
     success: bool
     userid: Optional[int] = None
     message: str
+    wallet_address: Optional[str] = None
 
 class RegisterRequest(BaseModel):
     name: str

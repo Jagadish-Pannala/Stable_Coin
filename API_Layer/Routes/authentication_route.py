@@ -67,7 +67,8 @@ async def login_user(
     return LoginResponse(
         success=True,
         userid=user.user_id,
-        message="Login successful"
+        message="Login successful",
+        wallet_address=user.wallet_address
     )
 
 
