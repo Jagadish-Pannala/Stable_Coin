@@ -1,7 +1,21 @@
+import os
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from API_Layer.Routes import wallet_routes, authentication_route
 
+FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
+
 app = FastAPI(title="Tenderly Wallet API")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[FRONTEND_URL, "http://localhost:5173"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+    expose_headers=["Content-Disposition"],
+    max_age=3600,
+)
 
 app.include_router(wallet_routes.router, prefix="/wallet", tags=["Wallet"])
 app.include_router(authentication_route.router, prefix="/auth", tags=["Authentication"])
