@@ -1,5 +1,4 @@
 
-from openai import models
 from sqlalchemy.orm import Session
 from DataAccess_Layer.models.model import user_Wallet
 from typing import Optional, List
