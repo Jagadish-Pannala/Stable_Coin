@@ -1,4 +1,5 @@
 import re
+from fastapi import HTTPException, status
 from passlib.context import CryptContext
 from sqlalchemy.orm import Session
 import bcrypt
@@ -47,7 +48,11 @@ class AuthenticationService:
     
     def _verify_password(self, password: str, hashed: str) -> bool:
         """Verify password against hash"""
-        return bcrypt.checkpw(password.encode('utf-8'), hashed.encode('utf-8'))
+        result = bcrypt.checkpw(password.encode('utf-8'), hashed.encode('utf-8'))
+        if not result:
+            print("Password verification failed")
+            return False
+        return True
 
     def register_user(self, mail: str, name: str, password: str):
         print("entering service layer", password)
@@ -83,13 +88,20 @@ class AuthenticationService:
 
         return new_user
 
-    def authenticate_user(self, mail: str, password: str):
+    def authenticate_user(self, mail, password):
         user = self.user_dao.get_user_by_email(mail)
+
         if not user:
-            return None
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid email or password"
+            )
 
         if not self._verify_password(password, user.password):
-            return None
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid email or password"
+            )
 
         return user
 

@@ -6,7 +6,7 @@ class LoginRequest(BaseModel):
     password: str
 
 class LoginResponse(BaseModel):
-    username: str
+    username: Optional[str] = None
     success: bool
     userid: Optional[int] = None
     message: str

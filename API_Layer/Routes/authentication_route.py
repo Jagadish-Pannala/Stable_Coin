@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
@@ -52,17 +52,10 @@ async def login_user(
 ):
     service = AuthenticationService(db)
 
-    user = await run_in_threadpool(
-        service.authenticate_user,
+    user = service.authenticate_user(
         request.username,
         request.password
     )
-
-    if not user:
-        return LoginResponse(
-            success=False,
-            message="Invalid username or password"
-        )
 
     return LoginResponse(
         success=True,
