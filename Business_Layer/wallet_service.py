@@ -154,6 +154,10 @@ class WalletService:
 
 
     def transfer(self, req: TransferRequest):
+        if not self.web3.is_address(req.from_address):
+            raise HTTPException(400, "Invalid Your address")
+        if not self.web3.is_address(req.to_address):
+            raise HTTPException(400, "Invalid Receiveraddress")
         from_addr = self.web3.to_checksum_address(req.from_address)
         to_addr = self.web3.to_checksum_address(req.to_address)
 

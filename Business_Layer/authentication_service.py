@@ -1,8 +1,7 @@
 import re
 from passlib.context import CryptContext
 from sqlalchemy.orm import Session
-import hashlib
-from passlib.hash import bcrypt
+import bcrypt
 from DataAccess_Layer.dao.user_authentication import UserAuthDAO
 from DataAccess_Layer.utils.database import set_db_session, remove_db_session
 from eth_account import Account
@@ -40,19 +39,19 @@ class AuthenticationService:
 
     
  
-    def _hash_password(self,password: str) -> str:
-        # Step 1: Pre-hash
-        sha = hashlib.sha256(password.encode("utf-8")).digest()
-        # Step 2: bcrypt the result
-        return bcrypt.hash(sha)
-
-    def _verify_password(self, plain_password: str, hashed_password: str) -> bool:
-        sha = hashlib.sha256(plain_password.encode("utf-8")).digest()
-        return pwd_context.verify(sha, hashed_password)
-
-    # ------------------ public APIs ------------------
+    def _hash_password(self, password: str) -> str:
+        """Hash password using bcrypt"""
+        salt = bcrypt.gensalt(rounds=12)  # 12 rounds is a good balance
+        hashed = bcrypt.hashpw(password.encode('utf-8'), salt)
+        return hashed.decode('utf-8')
+    
+    def _verify_password(self, password: str, hashed: str) -> bool:
+        """Verify password against hash"""
+        return bcrypt.checkpw(password.encode('utf-8'), hashed.encode('utf-8'))
 
     def register_user(self, mail: str, name: str, password: str):
+        print("entering service layer", password)
+        
         if not self._is_valid_email(mail):
             raise ValueError("Invalid email format.")
 
@@ -65,10 +64,14 @@ class AuthenticationService:
         existing_user = self.user_dao.get_user_by_email(mail)
         if existing_user:
             raise ValueError("User with this email already exists.")
-
+        
+        print("password before hashing", password)
         hashed_password = self._hash_password(password)
-
+        print("hashed password", hashed_password)
+        
         acc = Account.create()
+        print("details", mail, name, hashed_password)
+
 
         new_user = self.user_dao.create_user(
             mail=mail,
