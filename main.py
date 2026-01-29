@@ -1,7 +1,7 @@
 import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from API_Layer.Routes import wallet_routes, authentication_route
+from API_Layer.Routes import wallet_routes, authentication_route, transaction_history_route
 
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
 
@@ -19,6 +19,7 @@ app.add_middleware(
 
 app.include_router(wallet_routes.router, prefix="/wallet", tags=["Wallet"])
 app.include_router(authentication_route.router, prefix="/auth", tags=["Authentication"])
+app.include_router(transaction_history_route.router, prefix="/transactions", tags=["Transactions History"])
 
 
 @app.get("/")

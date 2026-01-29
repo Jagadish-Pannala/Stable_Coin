@@ -75,3 +75,17 @@ def verify_address(address: str):
             "message": str(e)
         }
 
+# # Transaction history
+# @router.get("/transactions/{address}", response_model=list[TransactionHistoryResponse])
+# def transaction_history(address: str):
+#     try:
+#         service = WalletService()
+#         result = service.transaction_history(address)
+#         return result
+#     except HTTPException as he:
+#         raise he
+#     except Exception as e:
+#         return{
+#             "success": False,
+#             "message": str(e)
+#         }

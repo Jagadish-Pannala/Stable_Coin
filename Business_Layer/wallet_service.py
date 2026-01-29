@@ -220,3 +220,9 @@ class WalletService:
             raise he
         except Exception as e:
             raise HTTPException(500, str(e))
+
+    # def transaction_history(self, address):
+    #     try:
+    #         if not self.web3.is_address(address):
+    #             raise HTTPException(400, "Invalid address")
+            

@@ -1,5 +1,6 @@
 from pydantic import BaseModel
 from typing import Optional
+import enum
 
 class WalletAddress(BaseModel):
     address: str
@@ -35,3 +36,4 @@ class BalanceResponse(BaseModel):
     balance_wei: int
     balance_eth: float
     balance_usdc: float
+
