@@ -20,12 +20,15 @@ class FaucetResponse(BaseModel):
     tx_hash: str
     message: str
 
+class VerifyAddressResponse(BaseModel):
+    address: str
+    is_valid: bool
+
 class TransferRequest(BaseModel):
     from_address: str
     to_address: str
-    private_key: str
     amount: float
-    asset: str  # ETH | USDC
+    asset: Optional[str] = "ETH"
 
 class BalanceResponse(BaseModel):
     address: str

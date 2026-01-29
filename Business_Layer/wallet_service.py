@@ -6,6 +6,7 @@ from storage.wallet_repository import WalletRepository
 from API_Layer.Interfaces.wallet_interface import BalanceResponse, TransferRequest
 from dotenv import load_dotenv
 from .authentication_service import AuthenticationService
+from DataAccess_Layer.dao.wallet_dao import WalletDAO
 import os
 from DataAccess_Layer.utils.session import get_db
 
@@ -20,7 +21,7 @@ ERC20_ABI = [
 ]
 
 class WalletService:
-    def __init__(self):
+    def __init__(self, db=None):
         self.web3 = Web3Client().w3
         self.repo = WalletRepository()
 
@@ -30,6 +31,8 @@ class WalletService:
             ),
             abi=ERC20_ABI
         )
+        self.db = db
+        self.dao = WalletDAO(self.db)
 
     def create_wallet(self):
         account = Account.create()
@@ -161,9 +164,14 @@ class WalletService:
         from_addr = self.web3.to_checksum_address(req.from_address)
         to_addr = self.web3.to_checksum_address(req.to_address)
 
-        account = Account.from_key(req.private_key)
-        if account.address != from_addr:
-            raise HTTPException(400, "Private key mismatch")
+        private_key = self.dao.get_private_key_by_address(req.from_address)
+        if not private_key:
+            raise HTTPException(404, "User not found")
+
+
+        # account = Account.from_key(req.private_key)
+        # if account.address != from_addr:
+        #     raise HTTPException(400, "Private key mismatch")
 
         nonce = self.web3.eth.get_transaction_count(from_addr)
 
@@ -192,7 +200,7 @@ class WalletService:
         else:
             raise HTTPException(400, "Unsupported asset")
 
-        signed_tx = self.web3.eth.account.sign_transaction(tx, req.private_key)
+        signed_tx = self.web3.eth.account.sign_transaction(tx, private_key)
 
         raw_tx = (
             signed_tx.raw_transaction
@@ -203,3 +211,12 @@ class WalletService:
         tx_hash = self.web3.eth.send_raw_transaction(raw_tx)
 
         return {"tx_hash": tx_hash.hex(), "status": "submitted"}
+    def verify_address(self, address):
+        try:
+            if not self.web3.is_address(address):
+                return False
+            return True
+        except HTTPException as he:
+            raise he
+        except Exception as e:
+            raise HTTPException(500, str(e))

@@ -1,6 +1,7 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from Business_Layer.wallet_service import WalletService
-from ..Interfaces.wallet_interface import CreateWalletResponse, BalanceResponse, TransferRequest, FaucetRequest, FaucetResponse
+from ..Interfaces.wallet_interface import (CreateWalletResponse, BalanceResponse, TransferRequest, 
+                                           FaucetRequest, FaucetResponse, VerifyAddressResponse)
 from sqlalchemy.orm import Session
 from DataAccess_Layer.utils.session import get_db 
 
@@ -39,5 +40,38 @@ def create_free_tokens(request: FaucetRequest):
 
 
 @router.post("/transfer")
-def transfer(req: TransferRequest):
-    return service.transfer(req)
+def transfer(request: TransferRequest, db: Session = Depends(get_db)):
+    try:
+        service = WalletService(db)
+        result = service.transfer(request)
+        return {
+            "success": True,
+            "tx_hash": result["tx_hash"],
+            "message": "Transfer successful"
+        }
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        return {
+            "success": False,
+            "message": str(e)
+        }
+    
+@router.post("/verify-address/{address}", response_model=VerifyAddressResponse)
+def verify_address(address: str):
+    try:
+        service = WalletService()
+        result = service.verify_address(address)
+        return VerifyAddressResponse(
+            address=address,
+            is_valid=result
+        
+    )
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        return {
+            "success": False,
+            "message": str(e)
+        }
+
