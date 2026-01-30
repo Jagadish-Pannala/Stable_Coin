@@ -10,6 +10,7 @@ from DataAccess_Layer.dao.wallet_dao import WalletDAO
 import os
 from DataAccess_Layer.utils.session import get_db
 
+load_dotenv()
 ERC20_ABI = [
     {"constant": True, "inputs": [{"name": "_owner", "type": "address"}],
      "name": "balanceOf", "outputs": [{"name": "balance", "type": "uint256"}], "type": "function"},
@@ -105,15 +106,15 @@ class WalletService:
             raise HTTPException(status_code=500, detail=str(e))
 
     def create_free_tokens(self, request):
-        load_dotenv()
         from_address = os.getenv("MAIN_WALLET_ADDRESS")
-        private_key = os.getenv("PRIVATE_KEY")
+        private_key = self.dao.get_private_key_by_address(from_address)
         if not self.web3.is_address(request.address):
             raise HTTPException(400, "Invalid address")
         to_address = self.web3.to_checksum_address(request.address)
         if request.amount>1000:
             raise ValueError("Amount exceeds faucet limit of 1000 tokens")
         nonce = self.web3.eth.get_transaction_count(from_address)
+        print("Nonce:", nonce)
 
         if request.type.upper() == "ETH":
             tx = {

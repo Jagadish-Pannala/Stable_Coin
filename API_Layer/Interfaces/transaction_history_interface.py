@@ -11,6 +11,7 @@ class EnumTransactionType(str, enum.Enum):
     SENT = "SENT"
     RECEIVED = "RECEIVED"
     CLAIMED = "CLAIMED"  # getting free tokens from tenderly faucet
+    BURNED = "BURNED"
 
 class TransactionHistoryResponse(BaseModel):
     from_address: str
