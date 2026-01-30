@@ -214,13 +214,13 @@ class TransactionService:
             
             # Get the counterparty address (address2)
             if transaction_type == EnumTransactionType.SENT:
-                address2 = to_address
+                to_address = to_address
             elif transaction_type == EnumTransactionType.RECEIVED:
-                address2 = from_address
+                to_address = to_address
             elif transaction_type == EnumTransactionType.CLAIMED:
-                address2 = None  # No counterparty for claimed tokens (faucet)
+                to_address = None  # No counterparty for claimed tokens (faucet)
             else:
-                address2 = None
+                to_address = None
             
             # Parse amount and asset
             amount = self._parse_amount(tx)
@@ -237,8 +237,8 @@ class TransactionService:
             
             # Build and return response
             return TransactionHistoryResponse(
-                address1=current_address,
-                address2=address2,
+                from_address=from_address,
+                to_address=to_address,
                 amount=amount,
                 asset=asset,
                 status=status,

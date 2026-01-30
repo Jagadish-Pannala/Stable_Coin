@@ -13,8 +13,8 @@ class EnumTransactionType(str, enum.Enum):
     CLAIMED = "CLAIMED"  # getting free tokens from tenderly faucet
 
 class TransactionHistoryResponse(BaseModel):
-    address1: str
-    address2: Optional[str] = None # could be None for CLAIMED type & sender address if Received | receiver address if S
+    from_address: str
+    to_address: Optional[str] = None # could be None for CLAIMED type & sender address if Received | receiver address if S
     amount: float
     asset: str
     status: EnumStatus
