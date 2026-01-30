@@ -225,6 +225,9 @@ class TransactionService:
             # Parse amount and asset
             amount = self._parse_amount(tx)
             asset = self._parse_asset(tx)
+            # Skip transactions with zero amount
+            if amount == 0:
+                return None
             
             # Get timestamp
             timestamp = self._parse_timestamp(tx)
