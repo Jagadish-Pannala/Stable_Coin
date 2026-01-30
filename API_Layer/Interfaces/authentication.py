@@ -24,7 +24,6 @@ class RegisterResponse(BaseModel):
 
 class UpdatePasswordRequest(BaseModel):
     email: str
-    old_password: str
     new_password: str
 
 class UpdatePasswordResponse(BaseModel):
