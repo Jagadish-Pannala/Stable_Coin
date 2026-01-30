@@ -2,7 +2,7 @@ import re
 from fastapi import HTTPException, status
 from passlib.context import CryptContext
 from sqlalchemy.orm import Session
-import bcrypt
+# import bcrypt
 from DataAccess_Layer.dao.user_authentication import UserAuthDAO
 from DataAccess_Layer.utils.database import set_db_session, remove_db_session
 from eth_account import Account
@@ -40,19 +40,21 @@ class AuthenticationService:
 
     
  
-    def _hash_password(self, password: str) -> str:
-        """Hash password using bcrypt"""
-        salt = bcrypt.gensalt(rounds=12)  # 12 rounds is a good balance
-        hashed = bcrypt.hashpw(password.encode('utf-8'), salt)
-        return hashed.decode('utf-8')
+    # def _hash_password(self, password: str) -> str:
+    #     """Hash password using bcrypt"""
+    #     salt = bcrypt.gensalt(rounds=12)  # 12 rounds is a good balance
+    #     hashed = bcrypt.hashpw(password.encode('utf-8'), salt)
+    #     return hashed.decode('utf-8')
     
     def _verify_password(self, password: str, hashed: str) -> bool:
         """Verify password against hash"""
-        result = bcrypt.checkpw(password.encode('utf-8'), hashed.encode('utf-8'))
-        if not result:
-            print("Password verification failed")
-            return False
-        return True
+        # result = bcrypt.checkpw(password.encode('utf-8'), hashed.encode('utf-8'))
+        # if not result:
+        #     print("Password verification failed")
+        #     return False
+        # return True
+
+        return password.strip() == hashed.strip()
 
     def register_user(self, mail: str, name: str, password: str):
         print("entering service layer", password)
@@ -70,18 +72,18 @@ class AuthenticationService:
         if existing_user:
             raise ValueError("User with this email already exists.")
         
-        print("password before hashing", password)
-        hashed_password = self._hash_password(password)
-        print("hashed password", hashed_password)
+        # print("password before hashing", password)
+        # hashed_password = self._hash_password(password)
+        # print("hashed password", hashed_password)
         
         acc = Account.create()
-        print("details", mail, name, hashed_password)
-
+        # print("details", mail, name, hashed_password)
+        password = password.strip()
 
         new_user = self.user_dao.create_user(
             mail=mail,
             name=name,
-            password=hashed_password,
+            password=password,
             wallet_address=acc.address,
             private_key=acc.key.hex()
         )
@@ -92,18 +94,12 @@ class AuthenticationService:
         user = self.user_dao.get_user_by_email(mail)
 
         if not user:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid email or password"
-            )
+            return {"success": False, "message": "User not found"}
 
         if not self._verify_password(password, user.password):
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid email or password"
-            )
+            return {"success": False, "message": "Invalid password"}
 
-        return user
+        return {"success": True, "user": user}
 
     def update_password(self, user_id: int, new_password: str):
         if not self._is_strong_password(new_password):
@@ -135,11 +131,11 @@ class AuthenticationService:
         if not user:
             raise ValueError("User not found.")
 
-        hashed_password = self._hash_password(new_password)
+        # hashed_password = self._hash_password(new_password)
 
         updated_user = self.user_dao.update_user_password(
             user.user_id,
-            hashed_password
+            new_password
         )
 
         return updated_user

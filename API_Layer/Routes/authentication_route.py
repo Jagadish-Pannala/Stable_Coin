@@ -57,12 +57,21 @@ async def login_user(
         request.password
     )
 
+    if isinstance(user, dict) and not user.get("success", True):
+        return LoginResponse(
+            success=False,
+            userid=None,
+            username=None,
+            message=user.get("message", "Login failed"),
+            wallet_address=None
+        )
+    
     return LoginResponse(
         success=True,
-        userid=user.user_id,
-        username=user.name,
+        userid=user["user"].user_id,
+        username=user["user"].name,
         message="Login successful",
-        wallet_address=user.wallet_address
+        wallet_address=user["user"].wallet_address
     )
 
 
