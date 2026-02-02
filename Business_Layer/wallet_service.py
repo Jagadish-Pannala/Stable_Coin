@@ -158,10 +158,15 @@ class WalletService:
 
 
     def transfer(self, req: TransferRequest):
+        # check if from address is valid
         if not self.web3.is_address(req.from_address):
             raise HTTPException(400, "Invalid Your address")
+        # check if to address is valid
         if not self.web3.is_address(req.to_address):
             raise HTTPException(400, "Invalid Receiveraddress")
+        # Check if the sender and receiver addresses are the same
+        if req.from_address.lower() == req.to_address.lower():
+            raise HTTPException(400, "Sender and receiver addresses cannot be the same")
         from_addr = self.web3.to_checksum_address(req.from_address)
         to_addr = self.web3.to_checksum_address(req.to_address)
 
@@ -222,8 +227,5 @@ class WalletService:
         except Exception as e:
             raise HTTPException(500, str(e))
 
-    # def transaction_history(self, address):
-    #     try:
-    #         if not self.web3.is_address(address):
-    #             raise HTTPException(400, "Invalid address")
+    
             
