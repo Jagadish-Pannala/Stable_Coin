@@ -26,8 +26,9 @@ def balance(address: str):
     return service.check_balance(address)
 
 @router.post("/free-tokens/{address}", response_model=FaucetResponse)
-def create_free_tokens(request: FaucetRequest):
+def create_free_tokens(request: FaucetRequest, db: Session = Depends(get_db)):
     try:
+        service = WalletService(db)
         result= service.create_free_tokens(request)
         return FaucetResponse(
             success=True,
@@ -35,7 +36,11 @@ def create_free_tokens(request: FaucetRequest):
             message="Faucet successful"
         )
     except Exception as e:
-        return str(e)
+        return FaucetResponse(
+            success=False,
+            tx_hash="",
+            message=str(e)
+        )
 
 
 
