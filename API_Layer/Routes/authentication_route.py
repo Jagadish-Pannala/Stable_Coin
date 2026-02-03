@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
+from http import HTTPStatus
 
 from ..Interfaces.authentication import (
     RegisterRequest,
@@ -39,10 +40,10 @@ async def register_user(
         )
 
     except ValueError as ve:
-        return RegisterResponse(
-            success=False,
-            message=str(ve)
-        )
+        raise HTTPException(
+                    status_code=401,
+                    detail=str(ve)
+                )
 
 
 @router.post("/login", response_model=LoginResponse)
@@ -58,12 +59,9 @@ async def login_user(
     )
 
     if isinstance(user, dict) and not user.get("success", True):
-        return LoginResponse(
-            success=False,
-            userid=None,
-            username=None,
-            message=user.get("message", "Login failed"),
-            wallet_address=None
+        raise HTTPException(
+            status_code=401,
+            detail=user.get("message", "Login failed")
         )
     
     return LoginResponse(
