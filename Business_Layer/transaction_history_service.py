@@ -5,7 +5,8 @@ Wallet Service - Handles all wallet and transaction operations with Tenderly
 import os
 import requests
 from typing import Optional, List
-from datetime import datetime
+from datetime import datetime, timezone
+from dateutil.parser import isoparse
 from zoneinfo import ZoneInfo
 from dotenv import load_dotenv
 from fastapi import HTTPException
@@ -152,7 +153,7 @@ class TransactionService:
             transactions = response_data.get("transactions", [])
         
         logger.info(f"Retrieved {len(transactions)} transactions for {address}")
-        print("transactions:", transactions[2])
+        # print("transactions:", transactions[2])
         result = []
         for tx in transactions:
             my_dict = {}
@@ -170,7 +171,7 @@ class TransactionService:
                     my_dict['transaction_type'] = self._determine_transaction_type(
                         tx, address, from_address, to_address)
                     result.append(my_dict)
-        print("result:", result)
+        # print("result:", result)
         return result
 
 
@@ -200,30 +201,18 @@ class TransactionService:
             return EnumStatus.FAILED
         else:
             return EnumStatus.PENDING
-    def utc_iso_to_local_str(self,
-        iso_utc: str,
-        tz_name: str = "Asia/Kolkata",
-        fmt: str = "%d/%m/%Y %H:%M:%S"
-    ) -> str:
-        """
-        Convert an ISO-8601 UTC timestamp (ending with 'Z') to a local timezone string.
+    def utc_iso_to_local_str(self, iso_utc: str) -> str:
+        if not iso_utc:
+            return ""
 
-        Args:
-            iso_utc (str): ISO 8601 UTC timestamp (e.g. '2026-01-30T09:16:14.867212Z')
-            tz_name (str): IANA timezone name (default: Asia/Kolkata)
-            fmt (str): Output datetime format
+        dt_utc = isoparse(iso_utc)
 
-        Returns:
-            str: Formatted local datetime string
-        """
-        # Parse ISO UTC → aware datetime
-        dt_utc = datetime.fromisoformat(iso_utc.replace("Z", "+00:00"))
+        # Ensure UTC timezone
+        if dt_utc.tzinfo is None:
+            dt_utc = dt_utc.replace(tzinfo=timezone.utc)
 
-        # Convert to target timezone
-        dt_local = dt_utc.astimezone(ZoneInfo(tz_name))
-
-        # Format output
-        return dt_local.strftime(fmt)
+        dt_local = dt_utc.astimezone()
+        return dt_local.strftime("%d-%m-%Y %H:%M:%S")
     def _determine_transaction_type(
         self,
         tx: dict,
