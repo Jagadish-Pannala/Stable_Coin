@@ -1,6 +1,6 @@
 
 from sqlalchemy.orm import Session
-from DataAccess_Layer.models.model import user_Wallet
+from DataAccess_Layer.models.model import BankCustomerDetails
 from typing import Optional, List
 
 
@@ -14,23 +14,23 @@ class UserAuthDAO:
     def __init__(self, db: Session):
         self.db = db
 
-    def get_user_by_email(self, email: str) -> Optional[user_Wallet]:
-        return self.db.query(user_Wallet).filter_by(mail=email).first()
+    def get_user_by_email(self, email: str):
+        return self.db.query(BankCustomerDetails).filter_by(mail=email).first()
 
-    def get_user_by_id(self, user_id: int) -> Optional[user_Wallet]:
-        return self.db.query(user_Wallet).filter_by(user_id=user_id).first()
+    def get_user_by_id(self, user_id: int) -> Optional[BankCustomerDetails]:
+        return self.db.query(BankCustomerDetails).filter_by(user_id=user_id).first()
     
     def count_users(self) -> int:
-        return self.db.query(user_Wallet).count()
+        return self.db.query(BankCustomerDetails).count()
     
     def count_active_users(self) -> int:
-        return self.db.query(user_Wallet).filter(user_Wallet.is_active == True).count()
+        return self.db.query(BankCustomerDetails).filter(BankCustomerDetails.is_active == True).count()
 
-    def get_all_users(self) -> List[user_Wallet]:
-        return self.db.query(user_Wallet).all()
+    def get_all_users(self) -> List[BankCustomerDetails]:
+        return self.db.query(BankCustomerDetails).all()
 
-    def create_user(self, mail: str, name: str, password: str, wallet_address: str, private_key: str) -> user_Wallet:
-        new_user = user_Wallet(
+    def create_user(self, mail: str, name: str, password: str, wallet_address: str, private_key: str) -> BankCustomerDetails:
+        new_user = BankCustomerDetails(
             mail=mail,
             name=name,
             password=password,
@@ -43,7 +43,7 @@ class UserAuthDAO:
         self.db.refresh(new_user)
         return new_user
     
-    def update_user(self, user_id: int, **kwargs) -> Optional[user_Wallet]:
+    def update_user(self, user_id: int, **kwargs) -> Optional[BankCustomerDetails]:
         user = self.get_user_by_id(user_id)
         if not user:
             return None
@@ -53,7 +53,7 @@ class UserAuthDAO:
         self.db.refresh(user)
         return user
     
-    def update_user_password(self, user_id: int, new_password: str) -> Optional[user_Wallet]:
+    def update_user_password(self, user_id: int, new_password: str) -> Optional[BankCustomerDetails]:
         user = self.get_user_by_id(user_id)
         if not user:
             return None

@@ -99,7 +99,7 @@ class AuthenticationService:
         if not self._verify_password(password, user.password):
             return {"success": False, "message": "Invalid password"}
 
-        return {"success": True, "user": user}
+        return user
 
     def update_password(self, user_id: int, new_password: str):
         if not self._is_strong_password(new_password):

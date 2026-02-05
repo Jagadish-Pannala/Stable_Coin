@@ -51,26 +51,20 @@ async def login_user(
     request: LoginRequest,
     db: Session = Depends(get_db)
 ):
-    service = AuthenticationService(db)
-
-    user = service.authenticate_user(
-        request.username,
-        request.password
-    )
-
-    if isinstance(user, dict) and not user.get("success", True):
+    try:
+        service = AuthenticationService(db)
+        result = await run_in_threadpool(
+            service.authenticate_user,
+            request.mail,
+            request.password)
+        return result
+    except HTTPException as he:
+        raise he
+    except Exception as e:
         raise HTTPException(
-            status_code=401,
-            detail=user.get("message", "Login failed")
+            status_code=500,
+            detail=str(e)
         )
-    
-    return LoginResponse(
-        success=True,
-        userid=user["user"].user_id,
-        username=user["user"].name,
-        message="Login successful",
-        wallet_address=user["user"].wallet_address
-    )
 
 
 @router.post("/update-password", response_model=UpdatePasswordResponse)
