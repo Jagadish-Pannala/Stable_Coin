@@ -153,14 +153,18 @@ class TransactionService:
             transactions = response_data.get("transactions", [])
         
         logger.info(f"Retrieved {len(transactions)} transactions for {address}")
-        # print("transactions:", transactions[2])
         result = []
+        # print("transactions:", transactions[:2])
         for tx in transactions:
             my_dict = {}
             from_address = tx.get("from", "").lower()
-            to_address = tx.get("to", "").lower()
+            asset = self.parse_asset(tx)
+            if asset == "USDC":
+                to_address = self.parse_to_address(tx)
+            else:
+                to_address = tx.get("to", "").lower()
             if from_address == address.lower() or to_address == address.lower():
-                if tx.get('rpc_method') == "eth_sendRawTransaction" and self.parse_asset(tx) == "ETH":
+                if tx.get('rpc_method') == "eth_sendRawTransaction" and asset == "ETH":
                     my_dict['from_address'] = from_address
                     my_dict['to_address'] = to_address
                     my_dict['amount'] = self.parse_amount(tx)
@@ -171,17 +175,45 @@ class TransactionService:
                     my_dict['transaction_type'] = self._determine_transaction_type(
                         tx, address, from_address, to_address)
                     result.append(my_dict)
+                elif tx.get('rpc_method') == "eth_sendRawTransaction" and asset == "USDC":
+                    my_dict['from_address'] = from_address
+                    my_dict["to_address"] = to_address
+                    my_dict['amount'] = self.parse_usdc_amount(tx)
+                    my_dict['asset'] = self.parse_asset(tx)
+                    my_dict['status'] = self.parse_status(tx)
+                    my_dict['tx_hash'] = tx.get("tx_hash", "")
+                    my_dict['timestamp'] = self.utc_iso_to_local_str(tx.get("created_at", ""))
+                    my_dict['transaction_type'] = self._determine_transaction_type(
+                        tx, address, from_address, to_address)
+                    result.append(my_dict)
+
         # print("result:", result)
         return result
 
 
 
+    def parse_to_address(self, tx):
+        input_data = tx.get("input", "")
+        if input_data and len(input_data) >= 74:
+            to_address = "0x" + input_data[34:74]
+            return to_address.lower()
+        return ""
+    def parse_usdc_amount(self, tx):
+        input_data = tx.get("input", "")
+        if input_data and len(input_data) >= 138:
+            amount_hex = input_data[74:138]
+            amount_wei = int(amount_hex, 16)
+            # USDC has 6 decimal places
+            amount_usdc = amount_wei / (10 ** 6)
+            return round(float(amount_usdc), 8)
+        return 0.0
 
     def parse_asset(self, tx):
         ip = tx.get("input", "")
         if ip and ip!='0x':
             return f"USDC"
         return "ETH"
+    
     def parse_amount(self, tx):
         value = tx.get("value", "0")
         if isinstance(value, str) and value.startswith("0x"):
@@ -228,7 +260,9 @@ class TransactionService:
         - SENT: from current user to another address
         - RECEIVED: from another address to current user
         """
-       
+        # print("from_address:", from_address)
+        # print("to_address:", to_address)
+        # print("current_address:", current_address)
         # Check if this is a faucet transaction (CLAIMED)
         if from_address == self.faucet_address and to_address == current_address:
             return EnumTransactionType.CLAIMED
