@@ -8,6 +8,7 @@ from ..Interfaces.authentication import (
     RegisterResponse,
     LoginRequest,
     LoginResponse,
+    Userdetails,
     UpdatePasswordRequest,
     UpdatePasswordResponse,
 )
@@ -93,26 +94,44 @@ async def update_password(
         )
 
 
-@router.get("/{user_id}")
+@router.get("/{user_id}", response_model=Userdetails)
 async def get_user_details(
     user_id: int,
     db: Session = Depends(get_db)
 ):
-    service = AuthenticationService(db)
+    try:
+        service = AuthenticationService(db)
 
-    user = await run_in_threadpool(
-        service.user_dao.get_user_by_id,
-        user_id
-    )
+        user = await run_in_threadpool(
+            service.user_dao.get_user_by_id,
+            user_id
+        )
+        if not user:
+            raise HTTPException(
+                status_code=HTTPStatus.NOT_FOUND,
+                detail="User not found"
+            )
+        return Userdetails(
+            id=user.id,
+            name=user.name,
+            mail=user.mail,
+            tenant_id=user.tenant_id,
+            customer_id=user.customer_id,
+            phone_number=user.phone_number,
+            is_active=user.is_active,
+            is_wallet=user.is_wallet,
+            wallet_address=user.wallet_address,
+            bank_account_number=user.bank_account_number,
+            fiat_balance=float(user.fiat_balance) if user.fiat_balance else None,
+            created_at=user.created_at.isoformat() if user.created_at else None
+        )
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        raise HTTPException(
+            status_code=HTTPStatus.INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )
 
-    if not user:
-        return {"success": False, "message": "User not found"}
-
-    return {
-        "success": True,
-        "user_id": user.user_id,
-        "email": user.mail,
-        "name": user.name,
-        "wallet_address": user.wallet_address,
-        "is_active": user.is_active
-    }
+    
+    

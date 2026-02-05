@@ -33,7 +33,6 @@ class TransferRequest(BaseModel):
 
 class BalanceResponse(BaseModel):
     address: str
-    balance_wei: int
     balance_eth: float
     balance_usdc: float
 

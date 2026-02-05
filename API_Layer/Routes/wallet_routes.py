@@ -6,10 +6,11 @@ from sqlalchemy.orm import Session
 from DataAccess_Layer.utils.session import get_db 
 
 router = APIRouter()
-service = WalletService()
+
 
 @router.post("/create", response_model=CreateWalletResponse)
 def create_wallet():
+    service = WalletService()
     acc = service.create_wallet()
     return CreateWalletResponse(
         success=True,
@@ -19,11 +20,31 @@ def create_wallet():
     )
 @router.get("/list-wallets")
 def list_wallets(db: Session = Depends(get_db)):
-    return service.list_wallets(db)
+    try:
+        service = WalletService(db)
+        result = service.list_wallets()
+        return result
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        return {
+            "success": False,
+            "message": str(e)
+        }
 
 @router.get("/balance/{address}", response_model=BalanceResponse)
 def balance(address: str):
-    return service.check_balance(address)
+    try:
+        service = WalletService()
+        result = service.check_balance(address)
+        return result
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        return {
+            "success": False,
+            "message": str(e)
+        }
 
 @router.post("/free-tokens/{address}", response_model=FaucetResponse)
 def create_free_tokens(request: FaucetRequest, db: Session = Depends(get_db)):

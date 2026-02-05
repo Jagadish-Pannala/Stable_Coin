@@ -91,15 +91,28 @@ class AuthenticationService:
         return new_user
 
     def authenticate_user(self, mail, password):
-        user = self.user_dao.get_user_by_email(mail)
+        try:
+            user = self.user_dao.get_user_by_email(mail)
 
-        if not user:
-            return {"success": False, "message": "User not found"}
+            if not user:
+                raise HTTPException(
+                    status_code=404,
+                    detail="User not found"
+                )
+            if not self._verify_password(password, user.password):
+                raise HTTPException(
+                    status_code=401,
+                    detail="Invalid password"
+                )
 
-        if not self._verify_password(password, user.password):
-            return {"success": False, "message": "Invalid password"}
-
-        return user
+            return user
+        except HTTPException as he:
+            raise he
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=str(e)
+            )
 
     def update_password(self, user_id: int, new_password: str):
         if not self._is_strong_password(new_password):

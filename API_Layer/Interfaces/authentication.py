@@ -16,6 +16,21 @@ class LoginResponse(BaseModel):
     wallet_address: Optional[str] = None
     bank_account_number: Optional[str] = None
 
+class Userdetails(BaseModel):
+    id: int
+    name: str
+    mail: str
+    tenant_id: int
+    customer_id: int
+    phone_number: Optional[str] = None
+    is_active: bool
+    is_wallet: bool
+    wallet_address: Optional[str] = None
+    bank_account_number: Optional[str] = None
+    fiat_balance: Optional[float] = None
+    created_at: str
+
+
 
 class RegisterRequest(BaseModel):
     name: str

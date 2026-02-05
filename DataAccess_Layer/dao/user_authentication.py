@@ -18,7 +18,7 @@ class UserAuthDAO:
         return self.db.query(BankCustomerDetails).filter_by(mail=email).first()
 
     def get_user_by_id(self, user_id: int) -> Optional[BankCustomerDetails]:
-        return self.db.query(BankCustomerDetails).filter_by(user_id=user_id).first()
+        return self.db.query(BankCustomerDetails).filter_by(id=user_id).first()
     
     def count_users(self) -> int:
         return self.db.query(BankCustomerDetails).count()

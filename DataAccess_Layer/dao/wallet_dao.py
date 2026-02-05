@@ -10,3 +10,6 @@ class WalletDAO:
         if user:
             return user.private_key
         return None
+    def get_all_users(self):
+        user = self.db.query(BankCustomerDetails.customer_id, BankCustomerDetails.mail, BankCustomerDetails.wallet_address).all()
+        return user

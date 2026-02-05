@@ -57,19 +57,19 @@ class WalletService:
 
         return BalanceResponse(
             address=address,
-            balance_wei=balance_wei,
+            # balance_wei=balance_wei,
             balance_eth=float(balance_eth),
             balance_usdc=float(usdc)
         )
     
-    def list_wallets(self, db):
+    def list_wallets(self):
         """
         List all wallets stored in wallets.json
         (private keys are NEVER exposed)
         """
         try:
-            users = AuthenticationService(db).get_users()
-            wallets = [{"user_id": u.user_id, "email": u.mail, "address": u.wallet_address} for u in users]
+            users = self.dao.get_all_users()
+            wallets = [{"user_id": u.customer_id, "email": u.mail, "address": u.wallet_address} for u in users]
             safe_wallets = []
 
             for w in wallets:

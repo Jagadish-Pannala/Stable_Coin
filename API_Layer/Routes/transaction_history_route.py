@@ -142,27 +142,16 @@ def transaction_summary(
             detail="Error generating transaction summary"
         )
 
-
-@router.get("/health")
-def health_check():
-    """Health check endpoint to verify service connectivity."""
-    try:
-        service = TransactionService()
-        return {
-            "status": "healthy",
-            "service": "transaction_history",
-            "tenderly_configured": True
-        }
-    except ValueError as e:
-        return {
-            "status": "unhealthy",
-            "error": str(e),
-            "tenderly_configured": False
-        }
-    except Exception as e:
-        logger.error(f"Health check failed: {str(e)}")
-        return {
-            "status": "unhealthy",
-            "error": "Unknown error",
-            "tenderly_configured": False
-        }
+# @router.get("/daily-transactions/{address}", response_model=List[TransactionHistoryResponse])
+# def daily_transactions(address: str, from_date: str = Query(..., description="Start date for transactions (YYYY-MM-DD)"), to_date: str = Query(..., description="End date for transactions (YYYY-MM-DD)")):
+#     try:
+#         service = TransactionService()
+#         result = service.daily_transactions(address, from_date, to_date)
+#         return result
+#     except HTTPException as he:
+#         raise he
+#     except Exception as e:
+#         return{
+#             "success": False,
+#             "message": str(e)
+#         }
