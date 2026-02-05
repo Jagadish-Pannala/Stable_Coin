@@ -4,3 +4,7 @@ web3
 eth-account
 pydantic
 python-dotenv
+passlib
+sqlalchemy
+pymysql
+python-dateutil
