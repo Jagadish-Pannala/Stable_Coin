@@ -1,6 +1,6 @@
 from sqlalchemy.orm import Session
 from DataAccess_Layer.models.model import BankCustomerDetails, CustomerPayee
-from typing import Optional, List
+from typing import Optional, List ,Tuple
 
 class WalletDAO:
     def __init__(self, db):
@@ -14,6 +14,18 @@ class WalletDAO:
     def get_all_users(self):
         user = self.db.query(BankCustomerDetails.customer_id, BankCustomerDetails.mail, BankCustomerDetails.wallet_address).all()
         return user
+
+    def get_fiat_balance_by_customer_id(
+        self, customer_id: str
+    ) -> Optional[Tuple[str, float]]:
+        user = (
+            self.db.query(BankCustomerDetails)
+            .filter(BankCustomerDetails.customer_id == customer_id)
+            .first()
+        )
+        if not user:
+            return None
+        return user.bank_account_number, user.fiat_bank_balance
     
     def get_fiat_bank_balance_by_wallet_address(self, wallet_address: str) -> Optional[float]:
         user = self.db.query(BankCustomerDetails).filter_by(wallet_address=wallet_address).first()
