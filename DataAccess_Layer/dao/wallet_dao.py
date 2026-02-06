@@ -1,10 +1,11 @@
 from sqlalchemy.orm import Session
-from DataAccess_Layer.models.model import BankCustomerDetails
+from DataAccess_Layer.models.model import BankCustomerDetails, CustomerPayee
 from typing import Optional, List ,Tuple
 
 class WalletDAO:
     def __init__(self, db):
         self.db = db
+
     def get_private_key_by_address(self, address: str) -> Optional[str]:
         user = self.db.query(BankCustomerDetails).filter_by(wallet_address=address).first()
         if user:
@@ -25,3 +26,27 @@ class WalletDAO:
         if not user:
             return None
         return user.bank_account_number, user.fiat_bank_balance
+    
+    def get_fiat_bank_balance_by_wallet_address(self, wallet_address: str) -> Optional[float]:
+        user = self.db.query(BankCustomerDetails).filter_by(wallet_address=wallet_address).first()
+        if user:
+            return user.fiat_bank_balance
+        return 0.0
+    
+    def get_users_by_search_query(self, query: str) -> List[BankCustomerDetails]:
+        search_pattern = f"%{query}%"
+        users = self.db.query(BankCustomerDetails).filter(
+            (BankCustomerDetails.name.ilike(search_pattern)) |
+            (BankCustomerDetails.phone_number.ilike(search_pattern)) |
+            (BankCustomerDetails.wallet_address.ilike(search_pattern))
+        ).all()
+        return users
+    
+    def get_payees_by_search_query(self, query: str) -> List[CustomerPayee]:
+        search_pattern = f"%{query}%"
+        payees = self.db.query(CustomerPayee).filter(
+            (CustomerPayee.payee_name.ilike(search_pattern)) |
+            (CustomerPayee.wallet_address.ilike(search_pattern))|
+            (CustomerPayee.phone_number.ilike(search_pattern))
+        ).all()
+        return payees
