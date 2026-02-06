@@ -227,5 +227,17 @@ class WalletService:
         except Exception as e:
             raise HTTPException(500, str(e))
 
-    
+    def get_fiat_balance_by_customer_id(self, customer_id: str):
+        result = self.dao.get_fiat_balance_by_customer_id(customer_id)
+        if not result:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Customer not found"
+            )
+        bank_account_number, fiat_bank_balance = result
+        return {
+            "bank_account_number": bank_account_number,
+            "fiat_bank_balance": float(fiat_bank_balance)
+            if fiat_bank_balance is not None else 0.0
+        }
             

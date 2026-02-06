@@ -1,7 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.concurrency import run_in_threadpool
 from Business_Layer.wallet_service import WalletService
 from ..Interfaces.wallet_interface import (CreateWalletResponse, BalanceResponse, TransferRequest, 
-                                           FaucetRequest, FaucetResponse, VerifyAddressResponse)
+                                           FaucetRequest, FaucetResponse, VerifyAddressResponse , FiatBalanceResponse)
 from sqlalchemy.orm import Session
 from DataAccess_Layer.utils.session import get_db 
 
@@ -115,3 +116,20 @@ def verify_address(address: str):
 #             "success": False,
 #             "message": str(e)
 #         }
+
+@router.get("/fiat_balance/{customer_id}")
+async def get_fiat_balance_by_customer_id(
+    customer_id: str,
+    db: Session = Depends(get_db)
+):
+    service = WalletService(db)
+
+    try:
+        return await run_in_threadpool(
+            service.get_fiat_balance_by_customer_id,
+            customer_id
+        )
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

@@ -36,3 +36,6 @@ class BalanceResponse(BaseModel):
     balance_eth: float
     balance_usdc: float
 
+class FiatBalanceResponse(BaseModel):
+    bank_account_number: str
+    fiat_bank_balance: float
