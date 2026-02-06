@@ -36,3 +36,18 @@ class BalanceResponse(BaseModel):
     balance_eth: float
     balance_usdc: float
 
+class StablecoinBalance(BaseModel):
+    symbol: str
+    balance: float
+
+class BalResponse(BaseModel):
+    totalFiat: float
+    stablecoins: list[StablecoinBalance]
+    totalStablecoinValue: float
+
+class SearchResponse(BaseModel):
+    customer_id: int
+    name: str
+    phone_number: Optional[str] = None
+    wallet_address: str
+
