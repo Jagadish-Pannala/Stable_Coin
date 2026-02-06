@@ -7,6 +7,8 @@ from sqlalchemy.orm import Session
 from DataAccess_Layer.dao.user_authentication import UserAuthDAO
 from DataAccess_Layer.utils.database import set_db_session, remove_db_session
 from eth_account import Account
+from API_Layer.Interfaces.wallet_interface import FaucetRequest
+from DataAccess_Layer.utils.session import get_db 
 
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -142,23 +144,46 @@ class AuthenticationService:
     def create_wallet_for_user(self, customer_id):
         try:
             user = self.user_dao.get_user_by_customer_id(customer_id)
+
             if not user:
                 raise HTTPException(
                     status_code=404,
                     detail="User not found"
                 )
+
             if user.is_wallet:
                 raise HTTPException(
                     status_code=400,
                     detail="User already has a wallet"
                 )
+
             account = Account.create()
             wallet_address = account.address
-            encrypted_private_key = account.key.hex()  # In production, encrypt this key and store securely
-            result = self.user_dao.create_wallet_for_user(customer_id, wallet_address, encrypted_private_key)
+            encrypted_private_key = account.key.hex()
+
+            result = self.user_dao.create_wallet_for_user(
+                customer_id,
+                wallet_address,
+                encrypted_private_key
+            )
+
+            # ✅ Lazy import to avoid circular dependency
+            from Business_Layer.wallet_service import WalletService
+
+            wallet_service = WalletService(self.db)
+
+            faucet_request = FaucetRequest(
+                address=wallet_address,
+                amount=500
+            )
+
+            wallet_service.create_free_tokens(faucet_request)
+
             return result
+
         except HTTPException as he:
             raise he
+
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

@@ -49,3 +49,26 @@ class CreateUserResponse(BaseModel):
 class CreateWalletResponse(BaseModel):
     wallet_address: str
     message: str
+
+class CreatePayeeRequest(BaseModel):
+    payee_name: str
+    phone_number: str
+    bank_account_number: Optional[str] = None
+    wallet_address: str
+    nickname: Optional[str] = None
+    is_favorite: Optional[bool] = False
+    is_active: Optional[bool] = True
+
+class CreatePayeeResponse(BaseModel):
+    payee_id: int
+    message: str
+class PayeeDetails(BaseModel):
+    id: int
+    customer_id: int
+    payee_name: str
+    phone_number: Optional[str] = None
+    bank_account_number: Optional[str] = None
+    wallet_address: Optional[str] = None
+    nickname: Optional[str] = None
+    is_favorite: bool
+    is_active: bool

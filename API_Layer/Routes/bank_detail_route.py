@@ -3,7 +3,8 @@ from fastapi.concurrency import run_in_threadpool
 from Business_Layer.bank_detail_service import BankDetailService
 from DataAccess_Layer.utils.session import get_db
 from sqlalchemy.orm import Session
-from API_Layer.Interfaces.bank_detail_interface import Userdetails, CreateUserRequest, CreateUserResponse, UpdateUserRequest, UpdateAdminRequest
+from API_Layer.Interfaces.bank_detail_interface import (Userdetails, CreateUserRequest, CreateUserResponse, UpdateUserRequest, UpdateAdminRequest,
+                                                        CreatePayeeRequest, CreatePayeeResponse, PayeeDetails)
 from http import HTTPStatus
 
 router = APIRouter()
@@ -131,3 +132,55 @@ def add_fiat_balance(
             status_code=500,
             detail=str(e)
         )
+    
+@router.post("/payee/{customer_id}", response_model=CreatePayeeResponse)
+def create_payee(
+    customer_id: str,
+    request: CreatePayeeRequest,
+    db: Session = Depends(get_db)
+):
+    try:
+        service = BankDetailService(db)
+        payee_id = service.create_payee(customer_id, request)
+        return CreatePayeeResponse(
+            payee_id=payee_id,
+            message="Payee created successfully"
+        )
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=str(e))
+@router.get("/payees/{customer_id}", response_model=list[PayeeDetails])
+def get_payees(customer_id: str, db: Session = Depends(get_db)):
+    try:
+        service = BankDetailService(db)
+        payees = service.get_payees(customer_id)
+        return payees
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=str(e))
+@router.delete("/payee/{payee_id}", response_model=CreatePayeeResponse)
+def delete_payee(customer_id: str, payee_id: int, db: Session = Depends(get_db)):
+    try:
+        service = BankDetailService(db)
+        result = service.delete_payee(customer_id, payee_id)
+        if not result:
+            raise HTTPException(
+                status_code=HTTPStatus.NOT_FOUND,
+                detail="Payee not found"
+            )
+        return CreatePayeeResponse(
+            payee_id=payee_id,
+            message="Payee deleted successfully"
+        )
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=str(e))
