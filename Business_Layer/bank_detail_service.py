@@ -31,7 +31,7 @@ class BankDetailService:
         return True
     def update_user_details(self, customer_id, request):
         try:
-            existing = self.user_dao.checking_user_by_customer_id(customer_id)
+            existing = self.dao.checking_user_by_customer_id(customer_id)
             if not existing:
                 raise HTTPException(
                     status_code=404,
@@ -66,5 +66,22 @@ class BankDetailService:
         except Exception as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=str(e)
+            )
+    def add_fiat_balance(self, tenant_id, customer_id, fiat_balance):
+        try:
+            user = self.dao.get_user_by_customer_id_and_tenant_id(customer_id, tenant_id)
+            if not user:
+                raise HTTPException(
+                    status_code=HTTPStatus.NOT_FOUND,
+                    detail="User not found"
+                )
+            new_balance = self.dao.add_fiat_balance(tenant_id, customer_id, fiat_balance)
+            return new_balance
+        except HTTPException as he:
+            raise he
+        except Exception as e:
+            raise HTTPException(
+                status_code=HTTPStatus.INTERNAL_SERVER_ERROR,
                 detail=str(e)
             )

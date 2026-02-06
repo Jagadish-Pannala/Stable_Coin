@@ -26,6 +26,7 @@ class UserAuthDAO:
 
     def get_user_by_customer_id(self, customer_id: str) -> Optional[BankCustomerDetails]:
         return self.db.query(BankCustomerDetails).filter_by(customer_id=customer_id).first()
+    
     def checking_customer_existing(self, customer_id, tenant_id, phone_number):
         return self.db.query(BankCustomerDetails).filter(
             BankCustomerDetails.tenant_id == tenant_id,
@@ -35,9 +36,9 @@ class UserAuthDAO:
             )
         ).first()
 
-    def checking_user_by_customer_id(self, customer_id):
-        result = self.db.query(BankCustomerDetails.is_wallet).filter_by(customer_id=customer_id).first()
-        return result.is_wallet if result else None
+    # def checking_user_by_customer_id(self, customer_id):
+    #     result = self.db.query(BankCustomerDetails.is_wallet).filter_by(customer_id=customer_id).first()
+    #     return result if result else None
         
     def count_users(self) -> int:
         return self.db.query(BankCustomerDetails).count()

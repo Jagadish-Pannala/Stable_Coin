@@ -1,3 +1,4 @@
+from typing import Optional
 from DataAccess_Layer.models.model import BankCustomerDetails
 from sqlalchemy.orm import Session
 
@@ -9,6 +10,8 @@ class BankDetailDAO:
 
     def get_user_by_customer_id(self, customer_id: str) -> BankCustomerDetails:
         return self.db.query(BankCustomerDetails).filter_by(customer_id=customer_id).first()
+    def get_user_by_customer_id_and_tenant_id(self, customer_id: str, tenant_id: str) -> Optional[BankCustomerDetails]:
+        return self.db.query(BankCustomerDetails).filter_by(customer_id=customer_id, tenant_id=tenant_id).first()
     def update_user_details(self, customer_id, request):
         user = self.db.query(BankCustomerDetails).filter_by(customer_id=customer_id).first()
         if not user:
@@ -36,3 +39,11 @@ class BankDetailDAO:
         self.db.commit()
         self.db.refresh(user)
         return True
+    def add_fiat_balance(self, tenant_id,customer_id, fiat_balance):
+        user = self.db.query(BankCustomerDetails).filter_by(customer_id=customer_id, tenant_id=tenant_id).first()
+        if not user:
+            return None
+        user.fiat_bank_balance = (user.fiat_bank_balance or 0) + fiat_balance
+        self.db.commit()
+        self.db.refresh(user)
+        return user.fiat_bank_balance

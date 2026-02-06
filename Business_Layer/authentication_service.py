@@ -141,13 +141,13 @@ class AuthenticationService:
     
     def create_wallet_for_user(self, customer_id):
         try:
-            user = self.user_dao.checking_user_by_customer_id(customer_id)
+            user = self.user_dao.get_user_by_customer_id(customer_id)
             if not user:
                 raise HTTPException(
                     status_code=404,
                     detail="User not found"
                 )
-            if user.is_wallet == True:
+            if user.is_wallet:
                 raise HTTPException(
                     status_code=400,
                     detail="User already has a wallet"
