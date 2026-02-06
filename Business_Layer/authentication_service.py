@@ -98,45 +98,7 @@ class AuthenticationService:
                 detail=str(e)
             )
         
-    def update_user_details(self, customer_id, request):
-        try:
-            existing = self.user_dao.checking_user_by_customer_id(customer_id)
-            if not existing:
-                raise HTTPException(
-                    status_code=404,
-                    detail="User not found"
-                )
-            self._is_valid_email(request.mail)
-            self._is_strong_password(request.password)
-            user = self.user_dao.update_user_details(customer_id, request)
-            return user
-        except HTTPException as he:
-            raise he
-        except Exception as e:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=str(e)
-            )
-        
-    def admin_update_user_details(self, customer_id, request):
-        try:
-            existing = self.user_dao.checking_user_by_customer_id(customer_id)
-            if not existing:
-                raise HTTPException(
-                    status_code=404,
-                    detail="User not found"
-                )
-            self._is_valid_email(request.mail)
-            self._is_strong_password(request.password)
-            user = self.user_dao.admin_update_user_details(customer_id, request)
-            return user
-        except HTTPException as he:
-            raise he
-        except Exception as e:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=str(e)
-            )
+    
     def create_wallet_for_user(self, customer_id):
         try:
             user = self.user_dao.checking_user_by_customer_id(customer_id)
