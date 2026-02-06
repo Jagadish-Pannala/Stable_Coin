@@ -19,32 +19,32 @@ from DataAccess_Layer.utils.session import get_db
 router = APIRouter()
 
 
-@router.post("/register", response_model=RegisterResponse)
-async def register_user(
-    request: RegisterRequest,
-    db: Session = Depends(get_db)
-):
-    service = AuthenticationService(db)
+# @router.post("/register", response_model=RegisterResponse)
+# async def register_user(
+#     request: RegisterRequest,
+#     db: Session = Depends(get_db)
+# ):
+#     service = AuthenticationService(db)
 
-    try:
-        new_user = await run_in_threadpool(
-            service.register_user,
-            request.email,
-            request.name,
-            request.password
-        )
+#     try:
+#         new_user = await run_in_threadpool(
+#             service.register_user,
+#             request.email,
+#             request.name,
+#             request.password
+#         )
 
-        return RegisterResponse(
-            success=True,
-            userid=new_user.user_id,
-            message="User registered successfully"
-        )
+#         return RegisterResponse(
+#             success=True,
+#             userid=new_user.user_id,
+#             message="User registered successfully"
+#         )
 
-    except ValueError as ve:
-        raise HTTPException(
-                    status_code=401,
-                    detail=str(ve)
-                )
+#     except ValueError as ve:
+#         raise HTTPException(
+#                     status_code=401,
+#                     detail=str(ve)
+#                 )
 
 
 @router.post("/login", response_model=LoginResponse)
@@ -122,7 +122,7 @@ async def get_user_details(
             is_wallet=user.is_wallet,
             wallet_address=user.wallet_address,
             bank_account_number=user.bank_account_number,
-            fiat_balance=float(user.fiat_balance) if user.fiat_balance else None,
+            fiat_bank_balance=float(user.fiat_bank_balance) if user.fiat_bank_balance else None,
             created_at=user.created_at.isoformat() if user.created_at else None
         )
     except HTTPException as he:

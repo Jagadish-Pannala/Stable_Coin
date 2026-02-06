@@ -27,7 +27,7 @@ class Userdetails(BaseModel):
     is_wallet: bool
     wallet_address: Optional[str] = None
     bank_account_number: Optional[str] = None
-    fiat_balance: Optional[float] = None
+    fiat_bank_balance: Optional[float] = None
     created_at: str
 
 
