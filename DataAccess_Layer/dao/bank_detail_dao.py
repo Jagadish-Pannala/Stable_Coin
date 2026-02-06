@@ -1,5 +1,5 @@
 from typing import Optional
-from DataAccess_Layer.models.model import BankCustomerDetails
+from DataAccess_Layer.models.model import BankCustomerDetails, CustomerPayee
 from sqlalchemy.orm import Session
 
 class BankDetailDAO:
@@ -47,3 +47,29 @@ class BankDetailDAO:
         self.db.commit()
         self.db.refresh(user)
         return user.fiat_bank_balance
+    def create_payee(self, id, request):
+        new_payee = CustomerPayee(
+            customer_id=id,
+            payee_name=request.payee_name,
+            phone_number=request.phone_number,
+            bank_account_number=request.bank_account_number,
+            wallet_address=request.wallet_address,
+            nickname=request.nickname,
+            is_favorite=request.is_favorite,
+            is_active=request.is_active
+        )
+        self.db.add(new_payee)
+        self.db.commit()
+        self.db.refresh(new_payee)
+        return new_payee
+    def get_payees(self, customer_id):
+        return self.db.query(CustomerPayee).filter_by(customer_id=customer_id).all()
+    def get_payee_by_id(self, payee_id):
+        return self.db.query(CustomerPayee).filter_by(id=payee_id).first()
+    def delete_payee(self, payee_id):
+        payee = self.db.query(CustomerPayee).filter_by(id=payee_id).first()
+        if not payee:
+            return None
+        self.db.delete(payee)
+        self.db.commit()
+        return True

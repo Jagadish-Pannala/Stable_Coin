@@ -4,12 +4,14 @@ from http import HTTPStatus
 import re
 
 from DataAccess_Layer.dao.user_authentication import UserAuthDAO
+from utils.web3_client import Web3Client
 
 
 
 class BankDetailService:
     def __init__(self, db=None):
         self.db = db
+        self.web3 = Web3Client().w3
         self.dao = BankDetailDAO(self.db)
         self.user_dao = UserAuthDAO(self.db)
 
@@ -78,6 +80,69 @@ class BankDetailService:
                 )
             new_balance = self.dao.add_fiat_balance(tenant_id, customer_id, fiat_balance)
             return new_balance
+        except HTTPException as he:
+            raise he
+        except Exception as e:
+            raise HTTPException(
+                status_code=HTTPStatus.INTERNAL_SERVER_ERROR,
+                detail=str(e)
+            )
+    def create_payee(self, customer_id, request):
+        try:
+            user = self.dao.get_user_by_customer_id(customer_id)
+            if not user:
+                raise HTTPException(
+                    status_code=HTTPStatus.NOT_FOUND,
+                    detail="User not found"
+                )
+            if not self.web3.is_address(request.wallet_address):
+                raise HTTPException(
+                    status_code=HTTPStatus.BAD_REQUEST,
+                    detail="Invalid wallet address"
+                )
+            payee_id = self.dao.create_payee(user.id, request)
+            return payee_id.id
+        except HTTPException as he: 
+            raise he
+        except Exception as e:
+            raise HTTPException(
+                status_code=HTTPStatus.INTERNAL_SERVER_ERROR,
+                detail=str(e)
+            )
+    def get_payees(self, customer_id):
+        try:
+            user = self.dao.get_user_by_customer_id(customer_id)
+            if not user:
+                raise HTTPException(
+                    status_code=HTTPStatus.NOT_FOUND,
+                    detail="User not found"
+                )
+            print("User found:", user.id)
+            payees = self.dao.get_payees(user.id)
+            return payees
+        except HTTPException as he:
+            raise he
+        except Exception as e:
+            raise HTTPException(
+                status_code=HTTPStatus.INTERNAL_SERVER_ERROR,
+                detail=str(e)
+            )
+    def delete_payee(self, customer_id, payee_id):
+        try:
+            user = self.dao.get_user_by_customer_id(customer_id)
+            if not user:
+                raise HTTPException(
+                    status_code=HTTPStatus.NOT_FOUND,
+                    detail="User not found"
+                )
+            payee = self.dao.get_payee_by_id(payee_id)
+            if not payee or payee.customer_id != user.id:
+                raise HTTPException(
+                    status_code=HTTPStatus.NOT_FOUND,
+                    detail="Payee not found"
+                )
+            self.dao.delete_payee(payee_id)
+            return {"message": "Payee deleted successfully"}
         except HTTPException as he:
             raise he
         except Exception as e:
