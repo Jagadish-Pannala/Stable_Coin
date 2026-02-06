@@ -21,7 +21,7 @@ class Userdetails(BaseModel):
     name: str
     mail: str
     tenant_id: int
-    customer_id: int
+    customer_id: str
     phone_number: Optional[str] = None
     is_active: bool
     is_wallet: bool
@@ -30,22 +30,36 @@ class Userdetails(BaseModel):
     fiat_bank_balance: Optional[float] = None
     created_at: str
 
-
-
-class RegisterRequest(BaseModel):
+class CreateUserRequest(BaseModel):
+    tenant_id: int
+    customer_id: str
+    mail: str
     name: str
     password: str
-    email: str
+    phone_number: str
+    bank_account_number: str
+    is_active: Optional[bool] = True
+    fiat_bank_balance: Optional[float] = 0.00
+class UpdateAdminRequest(BaseModel):
+    mail: str
+    name: str
+    password: str
+    phone_number: str
+    bank_account_number: str
+    is_active: Optional[bool] = True
+    fiat_bank_balance: Optional[float] = 0.00
 
-class RegisterResponse(BaseModel):
-    success: bool
-    userid: Optional[int] = None
+class UpdateUserRequest(BaseModel):
+    mail: str
+    name: str
+    password: str
+    phone_number: str
+    is_active: Optional[bool] = None
+
+class CreateUserResponse(BaseModel):
+    customer_id: str
     message: str
 
-class UpdatePasswordRequest(BaseModel):
-    email: str
-    new_password: str
-
-class UpdatePasswordResponse(BaseModel):
-    success: bool
+class CreateWalletResponse(BaseModel):
+    wallet_address: str
     message: str
