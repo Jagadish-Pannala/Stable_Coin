@@ -39,3 +39,18 @@ class BalanceResponse(BaseModel):
 class FiatBalanceResponse(BaseModel):
     bank_account_number: str
     fiat_bank_balance: float
+class StablecoinBalance(BaseModel):
+    symbol: str
+    balance: float
+
+class BalResponse(BaseModel):
+    totalFiat: float
+    stablecoins: list[StablecoinBalance]
+    totalStablecoinValue: float
+
+class SearchResponse(BaseModel):
+    customer_id: int
+    name: str
+    phone_number: Optional[str] = None
+    wallet_address: str
+

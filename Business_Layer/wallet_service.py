@@ -3,10 +3,11 @@ from fastapi import HTTPException
 from web3 import Web3
 from utils.web3_client import Web3Client
 from storage.wallet_repository import WalletRepository
-from API_Layer.Interfaces.wallet_interface import BalanceResponse, TransferRequest
+from API_Layer.Interfaces.wallet_interface import BalanceResponse, SearchResponse, TransferRequest
 from dotenv import load_dotenv
 from .authentication_service import AuthenticationService
 from DataAccess_Layer.dao.wallet_dao import WalletDAO
+
 import os
 from DataAccess_Layer.utils.session import get_db
 
@@ -34,6 +35,7 @@ class WalletService:
         )
         self.db = db
         self.dao = WalletDAO(self.db)
+        # self.user_dao = UserAuthDAO(self.db)
 
     def create_wallet(self):
         account = Account.create()
@@ -227,6 +229,72 @@ class WalletService:
         except Exception as e:
             raise HTTPException(500, str(e))
 
+    
+    def get_balance(self, address: str):
+        fiat_balance = self.dao.get_fiat_bank_balance_by_wallet_address(address)
+        if not self.web3.is_address(address):
+            raise HTTPException(status_code=400, detail="Invalid address")
+
+        address = self.web3.to_checksum_address(address)
+
+        tokens = [
+            {"symbol": "USDC", "contract": self.usdc_contract, "decimals": 6},
+        ]
+
+        stablecoins = []
+        total_value = 0
+
+        for token in tokens:
+            raw_balance = token["contract"].functions.balanceOf(address).call()
+            balance = raw_balance / (10 ** token["decimals"])
+
+            if balance > 0:
+                stablecoins.append({
+                    "symbol": token["symbol"],
+                    "balance": balance
+                })
+                total_value += balance
+
+        total_fiat = fiat_balance
+
+        return {
+            "totalFiat": round(total_fiat, 2),
+            "stablecoins": stablecoins,
+            "totalStablecoinValue": round(total_value, 2)
+        }
+    
+    def search_users(self, query: str):
+
+        # First search in bank_customer_details
+        users = self.dao.get_users_by_search_query(query)
+
+        # If found → return immediately
+        if users:
+            return [
+                {
+                    "customer_id": user.customer_id,
+                    "name": user.name,
+                    "phone_number": user.phone_number,
+                    "wallet_address": user.wallet_address
+                }
+                for user in users
+            ]
+
+        # If not found → search in customer_payees
+        payees = self.dao.get_payees_by_search_query(query)
+
+        return [
+            {
+                "customer_id": payee.id,  # or payee.customer_id if exists
+                "name": payee.name,
+                "phone_number": payee.phone_number,
+                "wallet_address": payee.wallet_address
+            }
+            for payee in payees
+        ]
+
+
+        
     def get_fiat_balance_by_customer_id(self, customer_id: str):
         result = self.dao.get_fiat_balance_by_customer_id(customer_id)
         if not result:

@@ -2,12 +2,11 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.concurrency import run_in_threadpool
 from Business_Layer.wallet_service import WalletService
 from ..Interfaces.wallet_interface import (CreateWalletResponse, BalanceResponse, TransferRequest, 
-                                           FaucetRequest, FaucetResponse, VerifyAddressResponse , FiatBalanceResponse)
+                                           FaucetRequest, FaucetResponse, VerifyAddressResponse , FiatBalanceResponse, BalResponse, SearchResponse)
 from sqlalchemy.orm import Session
 from DataAccess_Layer.utils.session import get_db 
 
 router = APIRouter()
-
 
 @router.post("/create", response_model=CreateWalletResponse)
 def create_wallet():
@@ -19,33 +18,33 @@ def create_wallet():
         private_key=acc.key.hex(),
         message="Wallet created"
     )
-@router.get("/list-wallets")
-def list_wallets(db: Session = Depends(get_db)):
-    try:
-        service = WalletService(db)
-        result = service.list_wallets()
-        return result
-    except HTTPException as he:
-        raise he
-    except Exception as e:
-        return {
-            "success": False,
-            "message": str(e)
-        }
+# @router.get("/list-wallets")
+# def list_wallets(db: Session = Depends(get_db)):
+#     try:
+#         service = WalletService(db)
+#         result = service.list_wallets()
+#         return result
+#     except HTTPException as he:
+#         raise he
+#     except Exception as e:
+#         return {
+#             "success": False,
+#             "message": str(e)
+#         }
 
-@router.get("/balance/{address}", response_model=BalanceResponse)
-def balance(address: str):
-    try:
-        service = WalletService()
-        result = service.check_balance(address)
-        return result
-    except HTTPException as he:
-        raise he
-    except Exception as e:
-        return {
-            "success": False,
-            "message": str(e)
-        }
+# @router.get("/balance/{address}", response_model=BalanceResponse)
+# def balance(address: str):
+#     try:
+#         service = WalletService()
+#         result = service.check_balance(address)
+#         return result
+#     except HTTPException as he:
+#         raise he
+#     except Exception as e:
+#         return {
+#             "success": False,
+#             "message": str(e)
+#         }
 
 @router.post("/free-tokens/{address}", response_model=FaucetResponse)
 def create_free_tokens(request: FaucetRequest, db: Session = Depends(get_db)):
@@ -133,3 +132,13 @@ async def get_fiat_balance_by_customer_id(
         raise he
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/bal/{address}", response_model=BalResponse)
+def get_balance(address: str, db: Session = Depends(get_db)):
+    service = WalletService(db)
+    return service.get_balance(address)
+
+@router.get("/search-users", response_model=list[SearchResponse])
+def search_users(query: str, db: Session = Depends(get_db)):
+    service = WalletService(db)
+    return service.search_users(query)
