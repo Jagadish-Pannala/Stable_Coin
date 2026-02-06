@@ -55,12 +55,20 @@ class WalletDAO:
             (BankCustomerDetails.wallet_address.ilike(search_pattern))
         ).all()
         return users
+    # check payees for particular customer and return results
     
-    def get_payees_by_search_query(self, query: str) -> List[CustomerPayee]:
+    def search_payees_for_customer(self, customer_id: str, query: str) -> list[CustomerPayee]:
         search_pattern = f"%{query}%"
-        payees = self.db.query(CustomerPayee).filter(
-            (CustomerPayee.payee_name.ilike(search_pattern)) |
-            (CustomerPayee.wallet_address.ilike(search_pattern))|
-            (CustomerPayee.phone_number.ilike(search_pattern))
-        ).all()
-        return payees
+
+        return (
+            self.db.query(CustomerPayee)
+            .filter(
+                CustomerPayee.customer_id == customer_id,
+                (
+                    CustomerPayee.payee_name.ilike(search_pattern) |
+                    CustomerPayee.wallet_address.ilike(search_pattern) |
+                    CustomerPayee.phone_number.ilike(search_pattern)
+                )
+            )
+            .all()
+        )
