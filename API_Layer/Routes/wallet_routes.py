@@ -57,7 +57,7 @@ def create_free_tokens(request: FaucetRequest, db: Session = Depends(get_db)):
             success=True,
             tx_hash=result["tx_hash"],
             message="Faucet successful",
-            fiat_bank_balance=None   # or result.get("fiat_bank_balance")
+            fiat_bank_balance=result.get("fiat_bank_balance", 0.0)
         )
 
     except HTTPException:
@@ -83,7 +83,8 @@ def transfer(request: TransferRequest, db: Session = Depends(get_db)):
         return {
             "success": True,
             "tx_hash": result["tx_hash"],
-            "message": "Transfer successful"
+            "message": "Transfer successful",
+            "fiat_bank_balance": result.get("fiat_bank_balance")
         }
     except HTTPException as he:
         raise he
@@ -152,3 +153,14 @@ def get_balance(address: str, db: Session = Depends(get_db)):
 def search_users(query: str, db: Session = Depends(get_db)):
     service = WalletService(db)
     return service.search_users(query)
+
+@router.get("/search-payees", response_model=list[SearchResponse])
+def search_payees(customer_id: str, query: str, db: Session = Depends(get_db)):
+    try:
+        service = WalletService(db)
+        result = service.search_payees(customer_id, query)
+        return result
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

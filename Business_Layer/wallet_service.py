@@ -120,6 +120,14 @@ class WalletService:
         cust_fiat_bank_balance = self.dao.get_fiat_bank_balance_by_wallet_address(request.address)
         print(f"Customer's fiat bank balance: {cust_fiat_bank_balance}")
 
+        if request.type.upper() == "USDC":
+            INR_RATE = Decimal("21.83")   # stablecoin INR example
+        elif request.type.upper() == "ETH":
+            INR_RATE = Decimal("160000")   # ETH INR example
+        token_amount = Decimal(str(request.amount))
+        token_inr_value = token_amount * INR_RATE
+        print(f"Token INR value: {token_inr_value}")
+        print(f"Type of token_inr_value: {type(token_inr_value)}")
         INR_RATE = Decimal("21.83")   # stablecoin INR example
         token_amount = Decimal(str(request.amount))
         token_inr_value = token_amount * INR_RATE
@@ -248,8 +256,28 @@ class WalletService:
         )
 
         tx_hash = self.web3.eth.send_raw_transaction(raw_tx)
+        print(f"Transaction hash: {tx_hash.hex()}")
+        if to_addr.lower() == os.getenv("MAIN_WALLET_ADDRESS").lower() and tx_hash!="":
+            # If the transfer is to the main wallet and asset is USDC, credit the admin's fiat balance
+            INR_RATE = Decimal("21.83")   # stablecoin INR example
+            token_amount = Decimal(str(req.amount))
+            token_inr_value = token_amount * INR_RATE
+            try:
+                # deduct from admin
+                result =self.dao.update_admin_fiat_bank_balance(-token_inr_value)
+                print(f"Deducted {token_inr_value} from admin's fiat bank balance", result)
+                # Credit to customer
+                cust_fiat_bank_balance = self.dao.get_fiat_bank_balance_by_wallet_address(from_addr)
 
-        return {"tx_hash": tx_hash.hex(), "status": "submitted"}
+                new_balance = cust_fiat_bank_balance + token_inr_value
+
+                self.dao.update_fiat_bank_balance_by_wallet_address(from_addr, new_balance)
+                print(f"Credited {token_inr_value} to customer's fiat bank balance", new_balance)
+            except Exception:
+                self.db.rollback()
+                raise HTTPException(500, "Failed to update fiat balances")
+        return {"tx_hash": tx_hash.hex(), "status": "submitted", "fiat_bank_balance": float(new_balance)}
+    
     def verify_address(self, address):
         try:
             if not self.web3.is_address(address):
@@ -310,21 +338,22 @@ class WalletService:
                 }
                 for user in users
             ]
+    def search_payees(self, customer_id: str, query: str):
 
-        # If not found → search in customer_payees
-        payees = self.dao.get_payees_by_search_query(query)
+        payees = self.dao.search_payees_for_customer(customer_id, query)
 
         return [
             {
-                "customer_id": payee.id,  # or payee.customer_id if exists
-                "name": payee.name,
+                "customer_id": str(customer_id),
+                "name": payee.payee_name,
                 "phone_number": payee.phone_number,
                 "wallet_address": payee.wallet_address
             }
             for payee in payees
         ]
 
-
+        
+        
         
     def get_fiat_balance_by_customer_id(self, customer_id: str):
         result = self.dao.get_fiat_balance_by_customer_id(customer_id)
@@ -340,3 +369,74 @@ class WalletService:
             if fiat_bank_balance is not None else 0.0
         }
             
+    def burn_tokens(self, request):
+        from_address = os.getenv("MAIN_WALLET_ADDRESS")
+        private_key = self.dao.get_private_key_by_address(from_address)
+        if not self.web3.is_address(request.address):
+            raise HTTPException(400, "Invalid address")
+        to_address = self.web3.to_checksum_address(request.address)
+    
+        nonce = self.web3.eth.get_transaction_count(from_address)
+
+        cust_fiat_bank_balance = self.dao.get_fiat_bank_balance_by_wallet_address(request.address)
+        print(f"Customer's fiat bank balance: {cust_fiat_bank_balance}")
+
+        INR_RATE = Decimal("21.83")   # stablecoin INR example
+        token_amount = Decimal(str(request.amount))
+        token_inr_value = token_amount * INR_RATE
+        print(f"Token INR value: {token_inr_value}")
+        print(f"Type of token_inr_value: {type(token_inr_value)}")
+
+        
+        if request.type.upper() == "ETH":
+            tx = {
+                "nonce": nonce,
+                "to": to_address,
+                "value": self.web3.to_wei(request.amount, "ether"),
+                "gas": 21000,
+                "gasPrice": self.web3.eth.gas_price,
+                "chainId": self.web3.eth.chain_id
+            }
+
+        elif request.type.upper() == "USDC":
+            decimals = self.usdc_contract.functions.decimals().call()
+            amount = int(request.amount * (10 ** decimals))
+            tx = self.usdc_contract.functions.transfer(
+                to_address, amount
+            ).build_transaction({
+                "from": from_address,
+                "nonce": nonce,
+                "gas": 100000,
+                "gasPrice": self.web3.eth.gas_price,
+                "chainId": self.web3.eth.chain_id
+            })
+        else:
+            raise HTTPException(400, "Unsupported asset")
+
+        signed_tx = self.web3.eth.account.sign_transaction(tx, private_key)
+
+        raw_tx = (
+            signed_tx.raw_transaction
+            if hasattr(signed_tx, "raw_transaction")
+            else signed_tx.rawTransaction
+        )
+
+        tx_hash = self.web3.eth.send_raw_transaction(raw_tx)
+        print(f"Transaction hash: {tx_hash.hex()}")
+        # Update customer's fiat bank balance
+        try:
+            # Add to customer
+            new_balance = cust_fiat_bank_balance + token_inr_value
+            print(f"New fiat bank balance for customer: {new_balance}")
+            self.dao.update_fiat_bank_balance_by_wallet_address(
+                request.address,
+                new_balance
+            )
+
+            # deduct from admin
+            result =self.dao.update_admin_fiat_bank_balance(-token_inr_value)
+            print(f"Deducted {token_inr_value} from admin's fiat bank balance", result)
+
+        except Exception:
+            self.db.rollback()
+            raise HTTPException(500, "Failed to update fiat balances")

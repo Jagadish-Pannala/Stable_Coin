@@ -35,7 +35,7 @@ class TransferRequest(BaseModel):
 
 class BalanceResponse(BaseModel):
     address: str
-    # balance_eth: float
+    balance_eth: float
     balance_usdc: float
 
 class FiatBalanceResponse(BaseModel):
