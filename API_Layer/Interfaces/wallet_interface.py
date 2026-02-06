@@ -21,6 +21,7 @@ class FaucetResponse(BaseModel):
     tx_hash: str
     message: str
     fiat_bank_balance: Optional[float] = None
+    
 
 class VerifyAddressResponse(BaseModel):
     address: str

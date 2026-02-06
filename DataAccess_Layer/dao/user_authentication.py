@@ -2,7 +2,7 @@
 from sqlalchemy.orm import Session
 from DataAccess_Layer.models.model import BankCustomerDetails
 from typing import Optional, List
-
+from sqlalchemy import desc
 
 import logging
 
@@ -13,49 +13,33 @@ class UserAuthDAO:
 
     def __init__(self, db: Session):
         self.db = db
-
+    def get_last_customer_id(self, tenant_id):
+        query = (
+            self.db.query(BankCustomerDetails.customer_id)
+            .filter(BankCustomerDetails.tenant_id == tenant_id)
+            .order_by(desc(BankCustomerDetails.id))
+            .first()
+        )
+        return query if query else None
     def get_user_by_email(self, email: str):
         return self.db.query(BankCustomerDetails).filter_by(mail=email).first()
 
     def get_user_by_customer_id(self, customer_id: str) -> Optional[BankCustomerDetails]:
-        print("customer_id in dao:", customer_id)
         return self.db.query(BankCustomerDetails).filter_by(customer_id=customer_id).first()
+    
     def checking_customer_existing(self, customer_id, tenant_id, phone_number):
         return self.db.query(BankCustomerDetails).filter(
-            (BankCustomerDetails.customer_id == customer_id) |
-            (BankCustomerDetails.phone_number == phone_number)
-        ).filter_by(tenant_id=tenant_id).first()
-    def checking_user_by_customer_id(self, customer_id):
-        result = self.db.query(BankCustomerDetails.is_wallet).filter_by(customer_id=customer_id).first()
-        return result.is_wallet if result else None
-    def update_user_details(self, customer_id, request):
-        user = self.db.query(BankCustomerDetails).filter_by(customer_id=customer_id).first()
-        if not user:
-            return None
-        user.mail = request.mail
-        user.name = request.name
-        user.password = request.password
-        user.phone_number = request.phone_number
-        user.bank_account_number = request.bank_account_number
-        self.db.commit()
-        self.db.refresh(user)
-        return True
-    def admin_update_user_details(self, customer_id, request):
-        user = self.db.query(BankCustomerDetails).filter_by(customer_id=customer_id).first()
-        if not user:
-            return None
-        user.mail = request.mail
-        user.name = request.name
-        user.password = request.password
-        user.phone_number = request.phone_number
-        user.bank_account_number = request.bank_account_number
-        user.is_active = request.is_active if request.is_active is not None else user.is_active
-        user.fiat_bank_balance = request.fiat_bank_balance if request.fiat_bank_balance is not None else user.fiat_bank_balance
+            BankCustomerDetails.tenant_id == tenant_id,
+            (
+                (BankCustomerDetails.customer_id == customer_id) |
+                (BankCustomerDetails.phone_number == phone_number)
+            )
+        ).first()
+
+    # def checking_user_by_customer_id(self, customer_id):
+    #     result = self.db.query(BankCustomerDetails.is_wallet).filter_by(customer_id=customer_id).first()
+    #     return result if result else None
         
-        self.db.commit()
-        self.db.refresh(user)
-        return True
-    
     def count_users(self) -> int:
         return self.db.query(BankCustomerDetails).count()
     
