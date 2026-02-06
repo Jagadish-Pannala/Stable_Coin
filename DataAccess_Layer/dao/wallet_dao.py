@@ -33,6 +33,20 @@ class WalletDAO:
             return user.fiat_bank_balance
         return 0.0
     
+    def update_fiat_bank_balance_by_wallet_address(self, wallet_address: str, new_balance:float):
+        user = self.db.query(BankCustomerDetails).filter_by(wallet_address=wallet_address).first()
+        if user:
+            user.fiat_bank_balance = new_balance
+            self.db.commit()
+        return user.fiat_bank_balance
+
+    def update_admin_fiat_bank_balance(self, amount: float):
+        admin = self.db.query(BankCustomerDetails).filter_by(tenant_id=1, customer_id="ADMI1711").first()
+        if admin:
+            admin.fiat_bank_balance += amount
+            self.db.commit()
+        return admin.fiat_bank_balance
+    
     def get_users_by_search_query(self, query: str) -> List[BankCustomerDetails]:
         search_pattern = f"%{query}%"
         users = self.db.query(BankCustomerDetails).filter(
