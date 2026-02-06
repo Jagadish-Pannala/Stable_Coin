@@ -20,6 +20,7 @@ class FaucetResponse(BaseModel):
     success: bool
     tx_hash: str
     message: str
+    fiat_bank_balance: Optional[float] = None
 
 class VerifyAddressResponse(BaseModel):
     address: str
@@ -33,7 +34,7 @@ class TransferRequest(BaseModel):
 
 class BalanceResponse(BaseModel):
     address: str
-    balance_eth: float
+    # balance_eth: float
     balance_usdc: float
 
 class FiatBalanceResponse(BaseModel):
@@ -49,7 +50,7 @@ class BalResponse(BaseModel):
     totalStablecoinValue: float
 
 class SearchResponse(BaseModel):
-    customer_id: int
+    customer_id: str
     name: str
     phone_number: Optional[str] = None
     wallet_address: str

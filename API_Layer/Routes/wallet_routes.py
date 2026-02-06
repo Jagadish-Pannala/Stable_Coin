@@ -32,36 +32,46 @@ def create_wallet():
 #             "message": str(e)
 #         }
 
-# @router.get("/balance/{address}", response_model=BalanceResponse)
-# def balance(address: str):
-#     try:
-#         service = WalletService()
-#         result = service.check_balance(address)
-#         return result
-#     except HTTPException as he:
-#         raise he
-#     except Exception as e:
-#         return {
-#             "success": False,
-#             "message": str(e)
-#         }
+@router.get("/balance/{address}", response_model=BalanceResponse)
+def balance(address: str):
+    try:
+        service = WalletService()
+        result = service.check_balance(address)
+        return result
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        return {
+            "success": False,
+            "message": str(e)
+        }
 
-@router.post("/free-tokens/{address}", response_model=FaucetResponse)
+
+@router.post("/free-tokens", response_model=FaucetResponse)
 def create_free_tokens(request: FaucetRequest, db: Session = Depends(get_db)):
     try:
         service = WalletService(db)
-        result= service.create_free_tokens(request)
+        result = service.create_free_tokens(request)
+
         return FaucetResponse(
             success=True,
             tx_hash=result["tx_hash"],
-            message="Faucet successful"
+            message="Faucet successful",
+            fiat_bank_balance=None   # or result.get("fiat_bank_balance")
         )
+
+    except HTTPException:
+        # Let FastAPI return proper HTTP status codes
+        raise
+
     except Exception as e:
         return FaucetResponse(
             success=False,
             tx_hash="",
-            message=str(e)
+            message=str(e),
+            fiat_bank_balance=None
         )
+
 
 
 

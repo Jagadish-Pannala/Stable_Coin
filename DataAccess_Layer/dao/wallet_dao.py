@@ -9,7 +9,7 @@ class WalletDAO:
     def get_private_key_by_address(self, address: str) -> Optional[str]:
         user = self.db.query(BankCustomerDetails).filter_by(wallet_address=address).first()
         if user:
-            return user.private_key
+            return user.encrypted_private_key
         return None
     def get_all_users(self):
         user = self.db.query(BankCustomerDetails.customer_id, BankCustomerDetails.mail, BankCustomerDetails.wallet_address).all()
@@ -32,6 +32,20 @@ class WalletDAO:
         if user:
             return user.fiat_bank_balance
         return 0.0
+    
+    def update_fiat_bank_balance_by_wallet_address(self, wallet_address: str, new_balance:float):
+        user = self.db.query(BankCustomerDetails).filter_by(wallet_address=wallet_address).first()
+        if user:
+            user.fiat_bank_balance = new_balance
+            self.db.commit()
+        return user.fiat_bank_balance
+
+    def update_admin_fiat_bank_balance(self, amount: float):
+        admin = self.db.query(BankCustomerDetails).filter_by(tenant_id=1, customer_id="ADMI1711").first()
+        if admin:
+            admin.fiat_bank_balance += amount
+            self.db.commit()
+        return admin.fiat_bank_balance
     
     def get_users_by_search_query(self, query: str) -> List[BankCustomerDetails]:
         search_pattern = f"%{query}%"
