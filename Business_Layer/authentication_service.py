@@ -56,39 +56,112 @@ class AuthenticationService:
 
         return password.strip() == hashed.strip()
 
-    def register_user(self, mail: str, name: str, password: str):
-        print("entering service layer", password)
-        
-        if not self._is_valid_email(mail):
-            raise ValueError("Invalid email format.")
 
-        if not self._is_strong_password(password):
-            raise ValueError(
-                "Password must be at least 8 characters long and contain "
-                "uppercase, lowercase, digit, and special character."
+    def create_user(self, tenant_id, customer_id, mail, name, password, phone_number, bank_account_number, is_active=True, fiat_bank_balance=0.00):
+        try:
+            existing_customer = self.user_dao.checking_customer_existing(customer_id, tenant_id, phone_number)
+            if existing_customer:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Customer ID already exists for this tenant or phone number already registered"
+                )
+            if not self._is_valid_email(mail):
+                raise HTTPException(
+                    status_code=400,
+                    detail="Invalid email format"
+                )
+            if not self._is_strong_password(password):
+                raise HTTPException(
+                    status_code=400,
+                    detail="Password must be at least 8 characters long and include uppercase letters, lowercase letters, numbers, and special characters"
+                )
+            # hashed_password = self._hash_password(password)
+            hashed_password = password
+            user = self.user_dao.create_user(
+                tenant_id=tenant_id,
+                customer_id=customer_id,
+                mail=mail,
+                name=name,
+                password=hashed_password,
+                phone_number=phone_number,
+                bank_account_number=bank_account_number,
+                is_active=is_active,
+                is_wallet=False,
+                fiat_bank_balance=fiat_bank_balance
             )
-
-        existing_user = self.user_dao.get_user_by_email(mail)
-        if existing_user:
-            raise ValueError("User with this email already exists.")
+            return True
+        except HTTPException as he:
+            raise he
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=str(e)
+            )
         
-        # print("password before hashing", password)
-        # hashed_password = self._hash_password(password)
-        # print("hashed password", hashed_password)
+    def update_user_details(self, customer_id, request):
+        try:
+            existing = self.user_dao.checking_user_by_customer_id(customer_id)
+            if not existing:
+                raise HTTPException(
+                    status_code=404,
+                    detail="User not found"
+                )
+            self._is_valid_email(request.mail)
+            self._is_strong_password(request.password)
+            user = self.user_dao.update_user_details(customer_id, request)
+            return user
+        except HTTPException as he:
+            raise he
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=str(e)
+            )
         
-        acc = Account.create()
-        # print("details", mail, name, hashed_password)
-        password = password.strip()
-
-        new_user = self.user_dao.create_user(
-            mail=mail,
-            name=name,
-            password=password,
-            wallet_address=acc.address,
-            private_key=acc.key.hex()
-        )
-
-        return new_user
+    def admin_update_user_details(self, customer_id, request):
+        try:
+            existing = self.user_dao.checking_user_by_customer_id(customer_id)
+            if not existing:
+                raise HTTPException(
+                    status_code=404,
+                    detail="User not found"
+                )
+            self._is_valid_email(request.mail)
+            self._is_strong_password(request.password)
+            user = self.user_dao.admin_update_user_details(customer_id, request)
+            return user
+        except HTTPException as he:
+            raise he
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=str(e)
+            )
+    def create_wallet_for_user(self, customer_id):
+        try:
+            user = self.user_dao.checking_user_by_customer_id(customer_id)
+            if not user:
+                raise HTTPException(
+                    status_code=404,
+                    detail="User not found"
+                )
+            if user.is_wallet == True:
+                raise HTTPException(
+                    status_code=400,
+                    detail="User already has a wallet"
+                )
+            account = Account.create()
+            wallet_address = account.address
+            encrypted_private_key = account.key.hex()  # In production, encrypt this key and store securely
+            result = self.user_dao.create_wallet_for_user(customer_id, wallet_address, encrypted_private_key)
+            return result
+        except HTTPException as he:
+            raise he
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=str(e)
+            )
 
     def authenticate_user(self, mail, password):
         try:
@@ -114,45 +187,7 @@ class AuthenticationService:
                 detail=str(e)
             )
 
-    def update_password(self, user_id: int, new_password: str):
-        if not self._is_strong_password(new_password):
-            raise ValueError(
-                "Password must be at least 8 characters long and contain "
-                "uppercase, lowercase, digit, and special character."
-            )
-
-        hashed_password = self._hash_password(new_password)
-
-        updated_user = self.user_dao.update_user_password(
-            user_id,
-            hashed_password
-        )
-
-        if not updated_user:
-            raise ValueError("User not found.")
-
-        return updated_user
-
-    def update_password_by_mail(self, mail: str, new_password: str):
-        if not self._is_strong_password(new_password):
-            raise ValueError(
-                "Password must be at least 8 characters long and contain "
-                "uppercase, lowercase, digit, and special character."
-            )
-
-        user = self.user_dao.get_user_by_email(mail)
-        if not user:
-            raise ValueError("User not found.")
-
-        # hashed_password = self._hash_password(new_password)
-
-        updated_user = self.user_dao.update_user_password(
-            user.user_id,
-            new_password
-        )
-
-        return updated_user
-    
+        
     def get_users(self):
         return self.user_dao.get_all_users()
 

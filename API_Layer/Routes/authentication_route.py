@@ -4,13 +4,14 @@ from sqlalchemy.orm import Session
 from http import HTTPStatus
 
 from ..Interfaces.authentication import (
-    RegisterRequest,
-    RegisterResponse,
     LoginRequest,
     LoginResponse,
     Userdetails,
-    UpdatePasswordRequest,
-    UpdatePasswordResponse,
+    CreateUserRequest,
+    CreateUserResponse,
+    CreateWalletResponse,
+    UpdateUserRequest,
+    UpdateAdminRequest
 )
 
 from Business_Layer.authentication_service import AuthenticationService
@@ -19,34 +20,62 @@ from DataAccess_Layer.utils.session import get_db
 router = APIRouter()
 
 
-# @router.post("/register", response_model=RegisterResponse)
-# async def register_user(
-#     request: RegisterRequest,
-#     db: Session = Depends(get_db)
-# ):
-#     service = AuthenticationService(db)
+# creating user without wallet
+@router.post("/create_user_without_wallet", response_model=CreateUserResponse)
+async def create_user(
+    request: CreateUserRequest,
+    db: Session = Depends(get_db)
+):
+    try:
+        service = AuthenticationService(db)
+        result = await run_in_threadpool(
+            service.create_user,
+            request.tenant_id,
+            request.customer_id,
+            request.mail,
+            request.name,
+            request.password,
+            request.phone_number,
+            request.bank_account_number,
+            request.is_active,
+            request.fiat_bank_balance
+        )
+        return CreateUserResponse(
+            customer_id=request.customer_id,
+            message="User created successfully"
+        )
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=str(e)
+        )
 
-#     try:
-#         new_user = await run_in_threadpool(
-#             service.register_user,
-#             request.email,
-#             request.name,
-#             request.password
-#         )
-
-#         return RegisterResponse(
-#             success=True,
-#             userid=new_user.user_id,
-#             message="User registered successfully"
-#         )
-
-#     except ValueError as ve:
-#         raise HTTPException(
-#                     status_code=401,
-#                     detail=str(ve)
-#                 )
-
-
+# creating  wallets for existing users
+@router.post("/create_wallet/{customer_id}", response_model=CreateWalletResponse)
+async def create_wallet_for_user(
+    customer_id: str,
+    db: Session = Depends(get_db)
+):
+    try:
+        service = AuthenticationService(db)
+        result = await run_in_threadpool(
+            service.create_wallet_for_user,
+            customer_id
+        )
+        return CreateWalletResponse(
+            wallet_address=result,
+            message="Wallet created successfully"
+        )
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=str(e)
+        )
+    
 @router.post("/login", response_model=LoginResponse)
 async def login_user(
     request: LoginRequest,
@@ -68,44 +97,19 @@ async def login_user(
         )
 
 
-@router.post("/update-password", response_model=UpdatePasswordResponse)
-async def update_password(
-    request: UpdatePasswordRequest,
-    db: Session = Depends(get_db)
-):
-    service = AuthenticationService(db)
-
-    try:
-        await run_in_threadpool(
-            service.update_password_by_mail,
-            request.email,
-            request.new_password
-        )
-
-        return UpdatePasswordResponse(
-            success=True,
-            message="Password updated successfully"
-        )
-
-    except ValueError as ve:
-        return UpdatePasswordResponse(
-            success=False,
-            message=str(ve)
-        )
 
 
-@router.get("/{user_id}", response_model=Userdetails)
+@router.get("/customer/{customer_id}", response_model=Userdetails)
 async def get_user_details(
-    user_id: int,
+    customer_id: str,
     db: Session = Depends(get_db)
 ):
     try:
+        print("customer_id in route:", customer_id)
         service = AuthenticationService(db)
 
         user = await run_in_threadpool(
-            service.user_dao.get_user_by_id,
-            user_id
-        )
+            service.user_dao.get_user_by_customer_id, customer_id)
         if not user:
             raise HTTPException(
                 status_code=HTTPStatus.NOT_FOUND,
@@ -133,5 +137,47 @@ async def get_user_details(
             detail=str(e)
         )
 
+# update user details by customer_id
+@router.put("/customer/{customer_id}", response_model=CreateUserResponse)
+async def update_user_details(
+    customer_id: str,
+    request: UpdateUserRequest,
+    db: Session = Depends(get_db)
+):
+    try:
+        service = AuthenticationService(db)
+        result = service.update_user_details(
+            customer_id, request)
+        return CreateUserResponse(
+            customer_id=customer_id,
+            message="User details updated successfully"
+        )
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=str(e)
+        )
     
+@router.put("/admin/update_user/{customer_id}", response_model=CreateUserResponse)
+def admin_update_user_details(
+    customer_id: str,
+    request: UpdateAdminRequest,
+    db: Session = Depends(get_db)):
+    try:
+        service = AuthenticationService(db)
+        result = service.admin_update_user_details(
+            customer_id, request)
+        return CreateUserResponse(
+            customer_id=customer_id,
+            message="User details updated successfully"
+        )
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=str(e)
+        )
     

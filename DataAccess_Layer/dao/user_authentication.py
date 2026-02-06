@@ -17,8 +17,44 @@ class UserAuthDAO:
     def get_user_by_email(self, email: str):
         return self.db.query(BankCustomerDetails).filter_by(mail=email).first()
 
-    def get_user_by_id(self, user_id: int) -> Optional[BankCustomerDetails]:
-        return self.db.query(BankCustomerDetails).filter_by(id=user_id).first()
+    def get_user_by_customer_id(self, customer_id: str) -> Optional[BankCustomerDetails]:
+        print("customer_id in dao:", customer_id)
+        return self.db.query(BankCustomerDetails).filter_by(customer_id=customer_id).first()
+    def checking_customer_existing(self, customer_id, tenant_id, phone_number):
+        return self.db.query(BankCustomerDetails).filter(
+            (BankCustomerDetails.customer_id == customer_id) |
+            (BankCustomerDetails.phone_number == phone_number)
+        ).filter_by(tenant_id=tenant_id).first()
+    def checking_user_by_customer_id(self, customer_id):
+        result = self.db.query(BankCustomerDetails.is_wallet).filter_by(customer_id=customer_id).first()
+        return result.is_wallet if result else None
+    def update_user_details(self, customer_id, request):
+        user = self.db.query(BankCustomerDetails).filter_by(customer_id=customer_id).first()
+        if not user:
+            return None
+        user.mail = request.mail
+        user.name = request.name
+        user.password = request.password
+        user.phone_number = request.phone_number
+        user.bank_account_number = request.bank_account_number
+        self.db.commit()
+        self.db.refresh(user)
+        return True
+    def admin_update_user_details(self, customer_id, request):
+        user = self.db.query(BankCustomerDetails).filter_by(customer_id=customer_id).first()
+        if not user:
+            return None
+        user.mail = request.mail
+        user.name = request.name
+        user.password = request.password
+        user.phone_number = request.phone_number
+        user.bank_account_number = request.bank_account_number
+        user.is_active = request.is_active if request.is_active is not None else user.is_active
+        user.fiat_bank_balance = request.fiat_bank_balance if request.fiat_bank_balance is not None else user.fiat_bank_balance
+        
+        self.db.commit()
+        self.db.refresh(user)
+        return True
     
     def count_users(self) -> int:
         return self.db.query(BankCustomerDetails).count()
@@ -29,19 +65,33 @@ class UserAuthDAO:
     def get_all_users(self) -> List[BankCustomerDetails]:
         return self.db.query(BankCustomerDetails).all()
 
-    def create_user(self, mail: str, name: str, password: str, wallet_address: str, private_key: str) -> BankCustomerDetails:
+    def create_user(self, tenant_id, customer_id, mail, name, password, phone_number, bank_account_number, is_active=True, is_wallet=False, fiat_bank_balance=0.00) -> BankCustomerDetails:
         new_user = BankCustomerDetails(
+            tenant_id=tenant_id,
+            customer_id=customer_id,
             mail=mail,
             name=name,
             password=password,
-            wallet_address=wallet_address,
-            private_key=private_key,
-            is_active=True
+            phone_number=phone_number,
+            bank_account_number=bank_account_number,
+            is_active=is_active,
+            is_wallet=is_wallet,
+            fiat_bank_balance=fiat_bank_balance
         )
         self.db.add(new_user)
         self.db.commit()
         self.db.refresh(new_user)
-        return new_user
+        return True
+    def create_wallet_for_user(self, customer_id, wallet_address, encrypted_private_key):
+        user = self.db.query(BankCustomerDetails).filter_by(customer_id=customer_id).first()
+        if not user:
+            return None
+        user.wallet_address = wallet_address
+        user.encrypted_private_key = encrypted_private_key
+        user.is_wallet = True
+        self.db.commit()
+        self.db.refresh(user)
+        return wallet_address
     
     def update_user(self, user_id: int, **kwargs) -> Optional[BankCustomerDetails]:
         user = self.get_user_by_id(user_id)
