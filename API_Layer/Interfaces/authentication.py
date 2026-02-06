@@ -9,7 +9,7 @@ class LoginResponse(BaseModel):
     id: int
     name: str
     tenant_id: int
-    customer_id: int
+    customer_id: str
     phone_number: Optional[str] = None
     is_active: bool
     is_wallet: bool

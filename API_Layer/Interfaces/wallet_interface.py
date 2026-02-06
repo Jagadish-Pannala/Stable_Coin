@@ -20,6 +20,7 @@ class FaucetResponse(BaseModel):
     success: bool
     tx_hash: str
     message: str
+    
 
 class VerifyAddressResponse(BaseModel):
     address: str
