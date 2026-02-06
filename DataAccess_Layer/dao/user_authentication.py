@@ -2,7 +2,7 @@
 from sqlalchemy.orm import Session
 from DataAccess_Layer.models.model import BankCustomerDetails
 from typing import Optional, List
-
+from sqlalchemy import desc
 
 import logging
 
@@ -13,18 +13,28 @@ class UserAuthDAO:
 
     def __init__(self, db: Session):
         self.db = db
-
+    def get_last_customer_id(self, tenant_id):
+        query = (
+            self.db.query(BankCustomerDetails.customer_id)
+            .filter(BankCustomerDetails.tenant_id == tenant_id)
+            .order_by(desc(BankCustomerDetails.id))
+            .first()
+        )
+        return query if query else None
     def get_user_by_email(self, email: str):
         return self.db.query(BankCustomerDetails).filter_by(mail=email).first()
 
     def get_user_by_customer_id(self, customer_id: str) -> Optional[BankCustomerDetails]:
-        print("customer_id in dao:", customer_id)
         return self.db.query(BankCustomerDetails).filter_by(customer_id=customer_id).first()
     def checking_customer_existing(self, customer_id, tenant_id, phone_number):
         return self.db.query(BankCustomerDetails).filter(
-            (BankCustomerDetails.customer_id == customer_id) |
-            (BankCustomerDetails.phone_number == phone_number)
-        ).filter_by(tenant_id=tenant_id).first()
+            BankCustomerDetails.tenant_id == tenant_id,
+            (
+                (BankCustomerDetails.customer_id == customer_id) |
+                (BankCustomerDetails.phone_number == phone_number)
+            )
+        ).first()
+
     def checking_user_by_customer_id(self, customer_id):
         result = self.db.query(BankCustomerDetails.is_wallet).filter_by(customer_id=customer_id).first()
         return result.is_wallet if result else None

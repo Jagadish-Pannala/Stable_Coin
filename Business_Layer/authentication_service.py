@@ -1,3 +1,4 @@
+import random
 import re
 from fastapi import HTTPException, status
 from passlib.context import CryptContext
@@ -55,10 +56,49 @@ class AuthenticationService:
         # return True
 
         return password.strip() == hashed.strip()
+    def generate_customer_id(self, tenant_id: int) -> str:
+        """
+        Generate next customer_id like CUST1712 based on last ID for tenant.
+        """
+
+        # Get last customer for tenant
+        last_customer = self.user_dao.get_last_customer_id(tenant_id)
+
+        print("Last customer:", last_customer)
+
+        if not last_customer or not last_customer[0]:
+            # First customer for tenant
+            return "CUST1701"
+
+        last_customer_id = last_customer[0]
+
+        print("Last customer_id:", last_customer_id)
+
+        # Extract number from CUSTXXXX
+        match = re.search(r"(\d+)$", last_customer_id)
+
+        if not match:
+            raise ValueError(f"Invalid customer_id format: {last_customer_id}")
+
+        last_number = int(match.group(1))
+
+        next_number = last_number + 1
+
+        new_customer_id = f"CUST{next_number}"
+
+        return new_customer_id
+    def generate_bank_account_number(self) -> str:
+        prefix = "1711"
+        random_part = ''.join(str(random.randint(0, 9)) for _ in range(8))
+        return prefix + random_part
 
 
-    def create_user(self, tenant_id, customer_id, mail, name, password, phone_number, bank_account_number, is_active=True, fiat_bank_balance=0.00):
+
+    def create_user(self, tenant_id, mail, name, password, phone_number, is_active=True, fiat_bank_balance=0.00):
         try:
+            customer_id = self.generate_customer_id(tenant_id)
+            bank_account_number = self.generate_bank_account_number()
+            print(f"Generated customer_id: {customer_id}, bank_account_number: {bank_account_number}")
             existing_customer = self.user_dao.checking_customer_existing(customer_id, tenant_id, phone_number)
             if existing_customer:
                 raise HTTPException(
@@ -89,7 +129,7 @@ class AuthenticationService:
                 is_wallet=False,
                 fiat_bank_balance=fiat_bank_balance
             )
-            return True
+            return customer_id
         except HTTPException as he:
             raise he
         except Exception as e:

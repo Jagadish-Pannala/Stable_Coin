@@ -32,12 +32,10 @@ class Userdetails(BaseModel):
 
 class CreateUserRequest(BaseModel):
     tenant_id: int
-    customer_id: str
     mail: str
     name: str
     password: str
     phone_number: str
-    bank_account_number: str
     is_active: Optional[bool] = True
     fiat_bank_balance: Optional[float] = 0.00
 class UpdateAdminRequest(BaseModel):

@@ -31,17 +31,15 @@ async def create_user(
         result = await run_in_threadpool(
             service.create_user,
             request.tenant_id,
-            request.customer_id,
             request.mail,
             request.name,
             request.password,
             request.phone_number,
-            request.bank_account_number,
             request.is_active,
             request.fiat_bank_balance
         )
         return CreateUserResponse(
-            customer_id=request.customer_id,
+            customer_id=result,
             message="User created successfully"
         )
     except HTTPException as he:
