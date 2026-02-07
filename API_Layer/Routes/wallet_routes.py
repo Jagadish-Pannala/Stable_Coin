@@ -2,11 +2,21 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.concurrency import run_in_threadpool
 from Business_Layer.wallet_service import WalletService
 from ..Interfaces.wallet_interface import (CreateWalletResponse, BalanceResponse, TransferRequest, 
-                                           FaucetRequest, FaucetResponse, VerifyAddressResponse , FiatBalanceResponse, BalResponse, SearchResponse)
+                                           FaucetRequest, FaucetResponse, VerifyAddressResponse , FiatBalanceResponse, BalResponse, SearchResponse,
+                                           AssetType)
 from sqlalchemy.orm import Session
 from DataAccess_Layer.utils.session import get_db 
 
 router = APIRouter()
+
+@router.get("/check-contract")
+def checK_contract():
+    try:
+        service = WalletService()
+        service.check_contract()
+        return {"message": "Contract check successful"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/create", response_model=CreateWalletResponse)
 def create_wallet():
@@ -48,10 +58,10 @@ def balance(address: str):
 
 
 @router.post("/free-tokens", response_model=FaucetResponse)
-def create_free_tokens(request: FaucetRequest, db: Session = Depends(get_db)):
+def create_free_tokens(address: str, type: AssetType, amount: float = 0.0, db: Session = Depends(get_db)):
     try:
         service = WalletService(db)
-        result = service.create_free_tokens(request)
+        result = service.create_free_tokens(FaucetRequest(address=address, type=type, amount=amount))
 
         return FaucetResponse(
             success=True,

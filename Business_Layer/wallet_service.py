@@ -1,6 +1,6 @@
 from decimal import Decimal
 from eth_account import Account
-from fastapi import HTTPException
+from fastapi import HTTPException, status
 from web3 import Web3
 from utils.web3_client import Web3Client
 from storage.wallet_repository import WalletRepository
@@ -14,14 +14,44 @@ from DataAccess_Layer.utils.session import get_db
 
 load_dotenv()
 ERC20_ABI = [
-    {"constant": True, "inputs": [{"name": "_owner", "type": "address"}],
-     "name": "balanceOf", "outputs": [{"name": "balance", "type": "uint256"}], "type": "function"},
-    {"constant": False, "inputs": [{"name": "_to", "type": "address"},
-                                   {"name": "_value", "type": "uint256"}],
-     "name": "transfer", "outputs": [{"name": "success", "type": "bool"}], "type": "function"},
-    {"constant": True, "inputs": [], "name": "decimals",
-     "outputs": [{"name": "", "type": "uint8"}], "type": "function"}
+    {
+        "constant": True,
+        "inputs": [{"name": "_owner", "type": "address"}],
+        "name": "balanceOf",
+        "outputs": [{"name": "balance", "type": "uint256"}],
+        "type": "function"
+    },
+    {
+        "constant": False,
+        "inputs": [{"name": "_to", "type": "address"},
+                   {"name": "_value", "type": "uint256"}],
+        "name": "transfer",
+        "outputs": [{"name": "success", "type": "bool"}],
+        "type": "function"
+    },
+    {
+        "constant": True,
+        "inputs": [],
+        "name": "decimals",
+        "outputs": [{"name": "", "type": "uint8"}],
+        "type": "function"
+    },
+    {
+        "constant": True,
+        "inputs": [],
+        "name": "name",
+        "outputs": [{"name": "", "type": "string"}],
+        "type": "function"
+    },
+    {
+        "constant": True,
+        "inputs": [],
+        "name": "symbol",
+        "outputs": [{"name": "", "type": "string"}],
+        "type": "function"
+    }
 ]
+
 
 class WalletService:
     def __init__(self, db=None):
@@ -34,9 +64,27 @@ class WalletService:
             ),
             abi=ERC20_ABI
         )
+        self.usdt_contract = self.web3.eth.contract(
+            address=self.web3.to_checksum_address("0xdAC17F958D2ee523a2206206994597C13D831ec7"),
+            abi=ERC20_ABI)
         self.db = db
         self.dao = WalletDAO(self.db)
         # self.user_dao = UserAuthDAO(self.db)
+
+    def check_contract(self):
+        code = self.web3.eth.get_code(
+            self.web3.to_checksum_address("0xdAC17F958D2ee523a2206206994597C13D831ec7")
+        )
+        # name = self.usdt_contract.functions.name().call()
+        # symbol = self.usdt_contract.functions.symbol().call()
+        # decimals = self.usdt_contract.functions.decimals().call()
+
+        # print(name, symbol, decimals)
+        raw_balance = self.usdt_contract.functions.balanceOf(self.web3.to_checksum_address("0x0B31AA8d667B056c8911CAE4b62f2b5Af8C8271a")).call()
+        print(raw_balance)
+
+
+        # print(code)
 
     def create_wallet(self):
         account = Account.create()
@@ -114,7 +162,14 @@ class WalletService:
         if not self.web3.is_address(request.address):
             raise HTTPException(400, "Invalid address")
         to_address = self.web3.to_checksum_address(request.address)
-    
+        checksum_main_address = self.web3.to_checksum_address(from_address)
+        # if request.type.upper() == "USDC" and self.usdc_contract.functions.balanceOf(checksum_main_address).call()<request.amount*10**6:
+        #     raise HTTPException(400, "Faucet is out of USDC funds")
+        # if request.type.upper() == "ETH" and self.web3.eth.get_balance(checksum_main_address)<self.web3.to_wei(request.amount, "ether"):
+        #     raise HTTPException(400, "Faucet is out of ETH funds")
+        # if request.type.upper() == "USDT" and self.usdt_contract.functions.balanceOf(checksum_main_address).call()<request.amount*10**6:
+        #     raise HTTPException(400, "Faucet is out of USDT funds")
+
         nonce = self.web3.eth.get_transaction_count(from_address)
 
         cust_fiat_bank_balance = self.dao.get_fiat_bank_balance_by_wallet_address(request.address)
@@ -123,12 +178,9 @@ class WalletService:
         if request.type.upper() == "USDC":
             INR_RATE = Decimal("21.83")   # stablecoin INR example
         elif request.type.upper() == "ETH":
-            INR_RATE = Decimal("160000")   # ETH INR example
-        token_amount = Decimal(str(request.amount))
-        token_inr_value = token_amount * INR_RATE
-        print(f"Token INR value: {token_inr_value}")
-        print(f"Type of token_inr_value: {type(token_inr_value)}")
-        INR_RATE = Decimal("21.83")   # stablecoin INR example
+            INR_RATE = Decimal("100")   # ETH INR example\
+        elif request.type.upper() == "USDT":
+            INR_RATE = Decimal("21.83")   # stablecoin INR example
         token_amount = Decimal(str(request.amount))
         token_inr_value = token_amount * INR_RATE
         print(f"Token INR value: {token_inr_value}")
@@ -153,6 +205,18 @@ class WalletService:
             decimals = self.usdc_contract.functions.decimals().call()
             amount = int(request.amount * (10 ** decimals))
             tx = self.usdc_contract.functions.transfer(
+                to_address, amount
+            ).build_transaction({
+                "from": from_address,
+                "nonce": nonce,
+                "gas": 100000,
+                "gasPrice": self.web3.eth.gas_price,
+                "chainId": self.web3.eth.chain_id
+            })
+        elif request.type.upper() == "USDT":
+            decimals = self.usdt_contract.functions.decimals().call()
+            amount = int(request.amount * (10 ** decimals))
+            tx = self.usdt_contract.functions.transfer(
                 to_address, amount
             ).build_transaction({
                 "from": from_address,
@@ -193,7 +257,7 @@ class WalletService:
             raise HTTPException(500, "Failed to update fiat balances")
 
 
-        return {"tx_hash": tx_hash.hex(), "status": "submitted", "fiat_bank_balance": float(new_balance)}
+        return {"tx_hash": tx_hash.hex(), "status": "submitted", "your new fiat_bank_balance": float(new_balance), "message": f"Successfully transferred {request.amount} {request.type}"}
 
 
 
@@ -296,31 +360,33 @@ class WalletService:
 
         address = self.web3.to_checksum_address(address)
 
-        tokens = [
-            {"symbol": "USDC", "contract": self.usdc_contract, "decimals": 6},
-        ]
 
-        stablecoins = []
-        total_value = 0
 
-        for token in tokens:
-            raw_balance = token["contract"].functions.balanceOf(address).call()
-            balance = raw_balance / (10 ** token["decimals"])
+        # tokens = [
+        #     {"symbol": "USDC", "contract": self.usdc_contract, "decimals": 6},
+        # ]
 
-            if balance > 0:
-                stablecoins.append({
-                    "symbol": token["symbol"],
-                    "balance": balance
-                })
-                total_value += balance
+        # stablecoins = []
+        # total_value = 0
 
-        total_fiat = fiat_balance
+        # for token in tokens:
+        #     raw_balance = token["contract"].functions.balanceOf(address).call()
+        #     balance = raw_balance / (10 ** token["decimals"])
 
-        return {
-            "totalFiat": round(total_fiat, 2),
-            "stablecoins": stablecoins,
-            "totalStablecoinValue": round(total_value, 2)
-        }
+        #     if balance > 0:
+        #         stablecoins.append({
+        #             "symbol": token["symbol"],
+        #             "balance": balance
+        #         })
+        #         total_value += balance
+
+        # total_fiat = fiat_balance
+
+        # return {
+        #     "totalFiat": round(total_fiat, 2),
+        #     "stablecoins": stablecoins,
+        #     "totalStablecoinValue": round(total_value, 2)
+        # }
     
     def search_users(self, query: str):
 

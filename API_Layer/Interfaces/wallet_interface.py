@@ -11,9 +11,14 @@ class CreateWalletResponse(BaseModel):
     private_key: str
     message: str
 
+class AssetType(str, enum.Enum):
+    ETH = "ETH"
+    USDC = "USDC"
+    USDT = "USDT"
+
 class FaucetRequest(BaseModel):
     address: str
-    type:Optional[str] = "ETH"
+    type: AssetType
     amount: Optional[float] = 1.0
 
 class FaucetResponse(BaseModel):
