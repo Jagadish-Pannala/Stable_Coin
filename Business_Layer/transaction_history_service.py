@@ -155,7 +155,7 @@ class TransactionService:
         
         # logger.info(f"Retrieved {len(transactions)} transactions")
         result = []
-        # print("transactions:", transactions[:2])
+        print("transactions:", transactions[:2])
         for tx in transactions:
             my_dict = {}
             from_address = tx.get("from", "").lower()
@@ -164,8 +164,6 @@ class TransactionService:
                 to_address = self.parse_to_address(tx)
             else:
                 to_address = tx.get("to", "").lower()
-            print("from_address:", from_address)
-            print("to_address:", to_address)
             if from_address == address.lower() or to_address == address.lower():
                 if tx.get('rpc_method') == "eth_sendRawTransaction" and asset == "ETH":
                     my_dict['from_address'] = from_address
@@ -178,7 +176,7 @@ class TransactionService:
                     my_dict['transaction_type'] = self._determine_transaction_type(
                         tx, address, from_address, to_address)
                     result.append(my_dict)
-                elif tx.get('rpc_method') == "eth_sendRawTransaction" and asset == "USDC":
+                elif tx.get('rpc_method') == "eth_sendRawTransaction" and (asset == "USDC" or asset == "USDT"):
                     my_dict['from_address'] = from_address
                     my_dict["to_address"] = to_address
                     my_dict['amount'] = self.parse_usdc_amount(tx)
@@ -190,11 +188,7 @@ class TransactionService:
                         tx, address, from_address, to_address)
                     result.append(my_dict)
 
-        print("result:", result)
         return result
-    
-
-
 
     def parse_to_address(self, tx):
         input_data = tx.get("input", "")
@@ -214,8 +208,11 @@ class TransactionService:
 
     def parse_asset(self, tx):
         ip = tx.get("input", "")
-        if ip and ip!='0x':
+        to = tx.get("to", "")
+        if ip and ip!='0x' and to == '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48':
             return f"USDC"
+        elif ip and ip!='0x' and to == '0xdac17f958d2ee523a2206206994597c13d831ec7':
+            return f"USDT"
         return "ETH"
     
     def parse_amount(self, tx):

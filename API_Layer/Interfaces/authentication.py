@@ -37,7 +37,6 @@ class CreateUserRequest(BaseModel):
     password: str
     phone_number: str
     is_active: Optional[bool] = True
-    fiat_bank_balance: Optional[float] = 0.00
 class UpdateAdminRequest(BaseModel):
     mail: str
     name: str

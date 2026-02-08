@@ -35,8 +35,7 @@ async def create_user(
             request.name,
             request.password,
             request.phone_number,
-            request.is_active,
-            request.fiat_bank_balance
+            request.is_active
         )
         return CreateUserResponse(
             customer_id=result,
