@@ -154,7 +154,7 @@ class TransactionService:
             my_dict = {}
             from_address = tx.get("from", "").lower()
             asset = self.parse_asset(tx)
-            if asset == "USDC":
+            if asset == "USDC" or asset == "USDT":
                 to_address = self.parse_to_address(tx)
             else:
                 to_address = tx.get("to", "").lower()
