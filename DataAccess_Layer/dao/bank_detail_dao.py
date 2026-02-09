@@ -73,3 +73,5 @@ class BankDetailDAO:
         self.db.delete(payee)
         self.db.commit()
         return True
+    def get_payee_by_wallet_address_and_user_id(self, wallet_address, user_id):
+        return self.db.query(CustomerPayee).filter_by(wallet_address=wallet_address, customer_id=user_id).first()

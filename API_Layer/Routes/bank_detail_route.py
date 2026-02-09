@@ -133,13 +133,16 @@ def add_fiat_balance(
             detail=str(e)
         )
     
-@router.post("/payee/{customer_id}", response_model=CreatePayeeResponse)
+@router.post("/payee/customer_id", response_model=CreatePayeeResponse)
 def create_payee(
-    customer_id: str,
+    # customer_id: str,
     request: CreatePayeeRequest,
     db: Session = Depends(get_db)
 ):
     try:
+        customer_id = request.customer_id
+        print("customer_id in route:", customer_id)
+        print("request in route:", request)
         service = BankDetailService(db)
         payee_id = service.create_payee(customer_id, request)
         return CreatePayeeResponse(

@@ -51,6 +51,7 @@ class CreateWalletResponse(BaseModel):
     message: str
 
 class CreatePayeeRequest(BaseModel):
+    customer_id: str
     payee_name: str
     phone_number: str
     bank_account_number: Optional[str] = None
