@@ -25,8 +25,49 @@ class TenantDetails(Base):
 
     customers = relationship("BankCustomerDetails", back_populates="tenant", cascade="all, delete")
 
+    # NEW relationship (added only this line)
+    tokens = relationship("TokenConfig", back_populates="tenant", cascade="all, delete")
+
     __table_args__ = (
         Index("idx_tenant_active", "is_active"),
+    )
+
+
+# ----------------------------------
+# NEW: Token Config Table
+# ----------------------------------
+class TokenConfig(Base):
+    __tablename__ = "token_config"
+
+    id = Column(Integer, primary_key=True, index=True)
+
+    tenant_id = Column(
+        Integer,
+        ForeignKey("tenant_details.id", ondelete="CASCADE"),
+        nullable=False
+    )
+
+    token_symbol = Column(String(20), nullable=False)
+    contract_address = Column(String(100), nullable=False)
+    central_wallet_address = Column(String(100), nullable=False)
+
+    encrypted_private_key = Column(Text, nullable=False)
+
+    mint_enabled = Column(Boolean, default=False)
+    burn_enabled = Column(Boolean, default=False)
+
+    decimals = Column(Integer, default=18)
+    is_active = Column(Boolean, default=True)
+
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    tenant = relationship("TenantDetails", back_populates="tokens")
+
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "token_symbol", name="unique_token_per_tenant"),
+        Index("idx_token_tenant", "tenant_id"),
+        Index("idx_token_active", "is_active"),
     )
 
 
