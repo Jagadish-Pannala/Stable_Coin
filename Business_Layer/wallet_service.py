@@ -167,8 +167,7 @@ class WalletService:
                     decimals = token.decimals or 18
 
                     balance = token_service.get_balance_with_decimals(
-                        address,
-                        decimals
+                        address
                     )
 
                     stablecoin_balance.append({
@@ -414,6 +413,13 @@ class WalletService:
 
     def transfer(self, req: TransferRequest):
         try:
+            if not self.web3.is_address(req.from_address):
+                raise HTTPException(400, "Invalid address")
+
+            to_address = self.web3.to_checksum_address(req.from_address)
+
+            tenant_id = self.dao.get_tenant_id_by_address(to_address)
+            
             asset = req.asset.upper()
             
             # 1 Validate addresses
@@ -426,123 +432,172 @@ class WalletService:
 
             if req.from_address.lower() == req.to_address.lower():
                 raise HTTPException(400, "Sender and receiver cannot be same")
-
-            from_addr = self.web3.to_checksum_address(req.from_address)
-            to_addr = self.web3.to_checksum_address(req.to_address)
-            main_wallet = self.web3.to_checksum_address(
-                os.getenv("MAIN_WALLET_ADDRESS")
-            )
-
-            # 2 Load contract
             
-            contract = self._get_contract(asset)
+            if not self.tenant_dao.tenant_has_tokens(tenant_id):
 
-            # 3 Get private key
+                from_addr = self.web3.to_checksum_address(req.from_address)
+                to_addr = self.web3.to_checksum_address(req.to_address)
+                main_wallet = self.web3.to_checksum_address(
+                    os.getenv("MAIN_WALLET_ADDRESS")
+                )
+
+                # 2 Load contract
+                
+                contract = self._get_contract(asset)
+
+                # 3 Get private key
+                
+                private_key = self.dao.get_private_key_by_address(from_addr)
+                if not private_key:
+                    raise HTTPException(404, "User not found")
+                
+                # 4 Convert amount safely
+                
+                decimals = contract.functions.decimals().call()
+                token_amount = Decimal(str(req.amount))
+                amount = int(token_amount * (10 ** decimals))
+
+                # 5 Check token balance
+                
+                balance = contract.functions.balanceOf(from_addr).call()
+                if balance < amount:
+                    raise HTTPException(400, "Insufficient token balance")
+
+                # 6 Nonce (pending safe)
+                
+                nonce = self.web3.eth.get_transaction_count(
+                    from_addr, "pending"
+                )
+
+                # 7 Build tx
+                
+                tx = contract.functions.transfer(
+                    to_addr,
+                    amount
+                ).build_transaction({
+                    "from": from_addr,
+                    "nonce": nonce,
+                    "chainId": self.web3.eth.chain_id,
+                    "gasPrice": self.web3.eth.gas_price
+                })
+
+                tx["gas"] = self.web3.eth.estimate_gas(tx)
+                
+                # 8 Sign + Send
+                
+                signed_tx = self.web3.eth.account.sign_transaction(
+                    tx, private_key
+                )
+
+                raw_tx = (
+                    signed_tx.raw_transaction
+                    if hasattr(signed_tx, "raw_transaction")
+                    else signed_tx.rawTransaction
+                )
+
+                tx_hash = self.web3.eth.send_raw_transaction(raw_tx)
+                
+                # 9 WAIT FOR CONFIRMATION
+                
+                receipt = self.web3.eth.wait_for_transaction_receipt(tx_hash)
+
+                if receipt.status != 1:
+                    raise HTTPException(400, "Transaction failed on-chain")
+
+                # 10 Fiat Settlement (Burn Logic)
+                
+                transfer_type = "Transfer"
+
+                if to_addr.lower() == main_wallet.lower():
+
+                    transfer_type = "Burn"
+
+                    INR_RATE = Decimal("90.40")
+                    token_inr_value = token_amount * INR_RATE
+
+                    # Atomic DB transaction
+                    admin_balance = self.dao.get_fiat_bank_balance_by_wallet_address(main_wallet)
+
+                    if admin_balance < token_inr_value:
+                        raise HTTPException(
+                            400,
+                            "Admin fiat insufficient"
+                        )
+
+                    self.dao.update_admin_fiat_bank_balance(
+                        -token_inr_value
+                    )
+
+                    cust_balance = (
+                        self.dao.get_fiat_bank_balance_by_wallet_address(
+                            from_addr
+                        )
+                    )
+
+                    new_balance = cust_balance + token_inr_value
+
+                    self.dao.update_fiat_bank_balance_by_wallet_address(
+                        from_addr,
+                        new_balance
+                    )
+                    tx_hash = tx_hash if isinstance(tx_hash, str) else tx_hash.hex()
+
+                    return {
+                        "tx_hash": tx_hash.hex(),
+                        "status": "confirmed",
+                        "type": transfer_type,
+                        "old_fiat_bank_balance": cust_balance,
+                        "new_fiat_bank_balance": float(new_balance)
+                    }
             
-            private_key = self.dao.get_private_key_by_address(from_addr)
-            if not private_key:
-                raise HTTPException(404, "User not found")
-            
-            # 4 Convert amount safely
-            
-            decimals = contract.functions.decimals().call()
-            token_amount = Decimal(str(req.amount))
-            amount = int(token_amount * (10 ** decimals))
+            else:
+                from Business_Layer.onchain_sepolia_gateway.services.onchain_token_service import (
+                    OnchainTokenService,
+                )
 
-            # 5 Check token balance
-            
-            balance = contract.functions.balanceOf(from_addr).call()
-            if balance < amount:
-                raise HTTPException(400, "Insufficient token balance")
+                from_addr = self.web3.to_checksum_address(req.from_address)
+                to_addr = self.web3.to_checksum_address(req.to_address)
 
-            # 6 Nonce (pending safe)
-            
-            nonce = self.web3.eth.get_transaction_count(
-                from_addr, "pending"
-            )
+                tenant = self.tenant_dao.get_tenant_by_id(tenant_id)
+                token_config = self.token_dao.get_token_by_symbol(
+                    tenant_id,
+                    asset
+                )
 
-            # 7 Build tx
-            
-            tx = contract.functions.transfer(
-                to_addr,
-                amount
-            ).build_transaction({
-                "from": from_addr,
-                "nonce": nonce,
-                "chainId": self.web3.eth.chain_id,
-                "gasPrice": self.web3.eth.gas_price
-            })
-
-            tx["gas"] = self.web3.eth.estimate_gas(tx)
-            
-            # 8 Sign + Send
-            
-            signed_tx = self.web3.eth.account.sign_transaction(
-                tx, private_key
-            )
-
-            raw_tx = (
-                signed_tx.raw_transaction
-                if hasattr(signed_tx, "raw_transaction")
-                else signed_tx.rawTransaction
-            )
-
-            tx_hash = self.web3.eth.send_raw_transaction(raw_tx)
-            
-            # 9 WAIT FOR CONFIRMATION
-            
-            receipt = self.web3.eth.wait_for_transaction_receipt(tx_hash)
-
-            if receipt.status != 1:
-                raise HTTPException(400, "Transaction failed on-chain")
-
-            # 10 Fiat Settlement (Burn Logic)
-            
-            transfer_type = "Transfer"
-
-            if to_addr.lower() == main_wallet.lower():
-
-                transfer_type = "Burn"
-
-                INR_RATE = Decimal("90.40")
-                token_inr_value = token_amount * INR_RATE
-
-                # Atomic DB transaction
-                admin_balance = self.dao.get_fiat_bank_balance_by_wallet_address(main_wallet)
-
-                if admin_balance < token_inr_value:
+                if not token_config:
                     raise HTTPException(
                         400,
-                        "Admin fiat insufficient"
+                        f"{asset} not configured for tenant"
                     )
 
-                self.dao.update_admin_fiat_bank_balance(
-                    -token_inr_value
+                private_key = self.dao.get_private_key_by_address(from_addr)
+                if not private_key:
+                    raise HTTPException(404, "Wallet not found")
+
+                token_service = OnchainTokenService()
+                token_service.configure(
+                    tenant.rpc_url,
+                    token_config.contract_address,
+                    private_key,
+                    tenant.chain_id
                 )
 
-                cust_balance = (
-                    self.dao.get_fiat_bank_balance_by_wallet_address(
-                        from_addr
-                    )
-                )
+                # Balance check
+                balance = token_service.get_balance(from_addr)
+                decimals = token_config.decimals or 18
+                token_amount = Decimal(str(req.amount))
+                amount_units = int(token_amount * (Decimal(10) ** decimals))
 
-                new_balance = cust_balance + token_inr_value
+                if balance < amount_units:
+                    raise HTTPException(400, "Insufficient token balance")
 
-                self.dao.update_fiat_bank_balance_by_wallet_address(
-                    from_addr,
-                    new_balance
-                )
+                # Send tx (do NOT wait for receipt)
+                tx_hash = token_service.transfer(to_addr, token_amount)
+                transfer_type = "Transfer"
 
-                return {
-                    "tx_hash": tx_hash.hex(),
-                    "status": "confirmed",
-                    "type": transfer_type,
-                    "old_fiat_bank_balance": cust_balance,
-                    "new_fiat_bank_balance": float(new_balance)
-                }
 
             return {
-                "tx_hash": tx_hash.hex(),
+                "tx_hash": tx_hash.hex() if not isinstance(tx_hash, str) else tx_hash,
                 "status": "confirmed",
                 "type": transfer_type
             }
