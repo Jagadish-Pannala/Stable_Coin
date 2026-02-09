@@ -1,11 +1,14 @@
 import json
 from web3 import Web3
 from eth_account import Account
+from decimal import Decimal
 
 
 class OnchainTokenService:
 
     ABI_CACHE = None
+    WEB3_CACHE = {}
+    CONTRACT_CACHE = {}
 
     def __init__(self):
         self.rpc_url = None
@@ -18,31 +21,50 @@ class OnchainTokenService:
     # ---------------- TENANT CONFIG ---------------- #
 
     def configure(self, rpc_url, contract_address, private_key, chain_id=None):
+
         self.rpc_url = rpc_url
         self.contract_address = Web3.to_checksum_address(contract_address)
         self.private_key = private_key
         self.chain_id = chain_id
 
-        self.web3 = Web3(Web3.HTTPProvider(self.rpc_url))
+        # -------- Web3 connection caching -------- #
+        if rpc_url not in OnchainTokenService.WEB3_CACHE:
+            web3 = Web3(Web3.HTTPProvider(rpc_url))
+            if not web3.is_connected():
+                raise Exception("Web3 connection failed")
+            OnchainTokenService.WEB3_CACHE[rpc_url] = web3
 
-        if not self.web3.is_connected():
-            raise Exception("Web3 connection failed")
+        self.web3 = OnchainTokenService.WEB3_CACHE[rpc_url]
 
-        # Load ABI once (cache)
+        # -------- ABI caching -------- #
         if not OnchainTokenService.ABI_CACHE:
             with open(
                 r"C:\Users\MohanDTeja.Saladi\Desktop\StableCoinDemo\Stable_Coin\Business_Layer\onchain_sepolia_gateway\abi\pavescoin_abi.json"
             ) as f:
                 OnchainTokenService.ABI_CACHE = json.load(f)
 
-        self.contract = self.web3.eth.contract(
-            address=self.contract_address,
-            abi=OnchainTokenService.ABI_CACHE
-        )
+        # -------- Contract caching -------- #
+        contract_key = f"{rpc_url}_{contract_address}"
+
+        if contract_key not in OnchainTokenService.CONTRACT_CACHE:
+            OnchainTokenService.CONTRACT_CACHE[contract_key] = (
+                self.web3.eth.contract(
+                    address=self.contract_address,
+                    abi=OnchainTokenService.ABI_CACHE
+                )
+            )
+
+        self.contract = OnchainTokenService.CONTRACT_CACHE[contract_key]
 
     def _ensure_configured(self):
         if not self.web3 or not self.contract:
             raise Exception("Token service not configured")
+
+    # ---------------- DECIMAL HELPER ---------------- #
+
+    def _to_token_units(self, amount):
+        decimals = self.contract.functions.decimals().call()
+        return int(Decimal(str(amount)) * (Decimal(10) ** decimals))
 
     # ---------------- READ METHODS ---------------- #
 
@@ -51,30 +73,18 @@ class OnchainTokenService:
         address = Web3.to_checksum_address(address)
         return self.contract.functions.balanceOf(address).call()
     
-    def get_balance_with_decimals(self, address, decimals=18):
-        """
-        Returns formatted token balance with decimals applied.
-        """
+    def get_balance_with_decimals(self, address):
         self._ensure_configured()
 
         address = Web3.to_checksum_address(address)
-
         raw_balance = self.contract.functions.balanceOf(address).call()
+        decimals = self.contract.functions.decimals().call()
 
-        return raw_balance / (10 ** decimals)
-
-    def total_supply(self):
-        self._ensure_configured()
-        return self.contract.functions.totalSupply().call()
+        return Decimal(raw_balance) / (Decimal(10) ** decimals)
 
     # ---------------- GAS OPTIMIZATION ---------------- #
 
     def _get_fee_params(self):
-        """
-        Use EIP-1559 gas if supported,
-        fallback to legacy gas price.
-        """
-
         try:
             latest_block = self.web3.eth.get_block("latest")
 
@@ -83,14 +93,15 @@ class OnchainTokenService:
                 priority_fee = self.web3.eth.max_priority_fee
 
                 return {
-                    "maxFeePerGas": int(base_fee * 2 + priority_fee),
+                    "maxFeePerGas": int(
+                        Decimal(base_fee) * 2 + Decimal(priority_fee)
+                    ),
                     "maxPriorityFeePerGas": int(priority_fee),
                 }
-
         except Exception:
             pass
 
-        return {"gasPrice": self.web3.eth.gas_price}
+        return {"gasPrice": int(self.web3.eth.gas_price)}
 
     # ---------------- TX BUILDER ---------------- #
 
@@ -105,7 +116,6 @@ class OnchainTokenService:
             "pending"
         )
 
-        # Estimate gas dynamically
         gas_estimate = function_call.estimate_gas({
             "from": account.address
         })
@@ -115,7 +125,7 @@ class OnchainTokenService:
         tx = function_call.build_transaction({
             "from": account.address,
             "nonce": nonce,
-            "gas": int(gas_estimate * 1.2),
+            "gas": int(Decimal(gas_estimate) * Decimal("1.2")),
             "chainId": self.chain_id or self.web3.eth.chain_id,
             **fee_params
         })
@@ -125,7 +135,6 @@ class OnchainTokenService:
             self.private_key
         )
 
-        # Compatible with Web3 v5 & v6
         raw_tx = getattr(signed_tx, "raw_transaction", None) \
                  or getattr(signed_tx, "rawTransaction")
 
@@ -138,45 +147,23 @@ class OnchainTokenService:
     def transfer(self, to, amount):
         self._ensure_configured()
         to = Web3.to_checksum_address(to)
-
+        amount_units = self._to_token_units(amount)
         return self._build_and_send_tx(
-            self.contract.functions.transfer(to, int(amount))
-        )
-
-    def approve(self, spender, amount):
-        self._ensure_configured()
-        spender = Web3.to_checksum_address(spender)
-
-        return self._build_and_send_tx(
-            self.contract.functions.approve(spender, int(amount))
-        )
-
-    def transfer_from(self, sender, recipient, amount):
-        self._ensure_configured()
-
-        sender = Web3.to_checksum_address(sender)
-        recipient = Web3.to_checksum_address(recipient)
-
-        return self._build_and_send_tx(
-            self.contract.functions.transferFrom(
-                sender,
-                recipient,
-                int(amount)
-            )
+            self.contract.functions.transfer(to, amount_units)
         )
 
     def mint(self, to, amount):
         self._ensure_configured()
         to = Web3.to_checksum_address(to)
-
+        amount_units = self._to_token_units(amount)
         return self._build_and_send_tx(
-            self.contract.functions.mint(to, int(amount))
+            self.contract.functions.mint(to, amount_units)
         )
 
     def burn(self, from_addr, amount):
         self._ensure_configured()
         from_addr = Web3.to_checksum_address(from_addr)
-
+        amount_units = self._to_token_units(amount)
         return self._build_and_send_tx(
-            self.contract.functions.burn(from_addr, int(amount))
+            self.contract.functions.burn(from_addr, amount_units)
         )
