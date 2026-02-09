@@ -8,8 +8,12 @@ from dotenv import load_dotenv
 from DataAccess_Layer.dao.wallet_dao import WalletDAO
 from DataAccess_Layer.dao.tenant_dao import TenantDAO
 from DataAccess_Layer.dao.token_dao import TokenDAO
+from Business_Layer.transaction_history_service import TransactionService
 import os
+from DataAccess_Layer.utils.session import get_db
+import logging
 
+logger = logging.getLogger(__name__)
 
 load_dotenv()
 ERC20_ABI = [
@@ -72,6 +76,14 @@ class WalletService:
         self.token_dao = TokenDAO(self.db)
         # self.user_dao = UserAuthDAO(self.db)
 
+    def _invalidate_transaction_cache(self):
+        """Invalidate transaction history cache after blockchain transactions"""
+        try:
+            tx_service = TransactionService()
+            tx_service.invalidate_transaction_cache()
+        except Exception as e:
+            logger.warning(f"Cache invalidation failed (non-critical): {e}")
+    
     def check_contract(self):
         # code = self.web3.eth.get_code(
         #     self.web3.to_checksum_address("0xdAC17F958D2ee523a2206206994597C13D831ec7")
@@ -397,6 +409,9 @@ class WalletService:
                 token_inr_value
             )
 
+            # invalidate cache
+            self._invalidate_transaction_cache()
+
             return {
                 "tx_hash": tx_hash if isinstance(tx_hash, str) else tx_hash.hex(),
                 "status": "confirmed",
@@ -594,7 +609,6 @@ class WalletService:
                 # Send tx (do NOT wait for receipt)
                 tx_hash = token_service.transfer(to_addr, token_amount)
                 transfer_type = "Transfer"
-
 
             return {
                 "tx_hash": tx_hash.hex() if not isinstance(tx_hash, str) else tx_hash,
