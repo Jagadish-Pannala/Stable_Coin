@@ -13,21 +13,21 @@ router = APIRouter()
 def checK_contract():
     try:
         service = WalletService()
-        service.check_contract()
-        return {"message": "Contract check successful"}
+        result = service.check_contract()
+        return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/create", response_model=CreateWalletResponse)
-def create_wallet():
-    service = WalletService()
-    acc = service.create_wallet()
-    return CreateWalletResponse(
-        success=True,
-        address=acc.address,
-        private_key=acc.key.hex(),
-        message="Wallet created"
-    )
+# @router.post("/create", response_model=CreateWalletResponse)
+# def create_wallet():
+#     service = WalletService()
+#     acc = service.create_wallet()
+#     return CreateWalletResponse(
+#         success=True,
+#         address=acc.address,
+#         private_key=acc.key.hex(),
+#         message="Wallet created"
+#     )
 
 @router.get("/balance/{address}", response_model=BalResponse)
 def balance(address: str, db: Session = Depends(get_db)):

@@ -40,7 +40,7 @@ class UpdateUserRequest(BaseModel):
     name: str
     password: str
     phone_number: str
-    is_active: Optional[bool] = None
+    is_active: Optional[bool] = True
 
 class CreateUserResponse(BaseModel):
     customer_id: str
