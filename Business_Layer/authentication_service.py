@@ -176,7 +176,7 @@ class AuthenticationService:
             faucet_request = FaucetRequest(
                 address=wallet_address,
                 type="ETH",
-                amount=500
+                amount=1
             )
 
             wallet_service.create_free_tokens(faucet_request)
