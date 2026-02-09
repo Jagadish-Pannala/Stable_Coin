@@ -50,6 +50,18 @@ class OnchainTokenService:
         self._ensure_configured()
         address = Web3.to_checksum_address(address)
         return self.contract.functions.balanceOf(address).call()
+    
+    def get_balance_with_decimals(self, address, decimals=18):
+        """
+        Returns formatted token balance with decimals applied.
+        """
+        self._ensure_configured()
+
+        address = Web3.to_checksum_address(address)
+
+        raw_balance = self.contract.functions.balanceOf(address).call()
+
+        return raw_balance / (10 ** decimals)
 
     def total_supply(self):
         self._ensure_configured()

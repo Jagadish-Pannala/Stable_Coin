@@ -95,30 +95,100 @@ class WalletService:
     def check_balance(self, address: str):
         try:
             if not self.web3.is_address(address):
-                raise HTTPException(400, "Invalid address")
-            fiat_total_balance = self.dao.get_fiat_bank_balance_by_wallet_address(address)
+                raise HTTPException(status_code=400, detail="Invalid address")
+
             address = self.web3.to_checksum_address(address)
+
+            fiat_total_balance = self.dao.get_fiat_bank_balance_by_wallet_address(address)
+
+            # Native ETH balance (optional)
             balance_wei = self.web3.eth.get_balance(address)
             balance_eth = self.web3.from_wei(balance_wei, "ether")
-            raw = self.usdc_contract.functions.balanceOf(address).call()
-            usdt_raw = self.usdt_contract.functions.balanceOf(address).call()
-            decimals = self.usdc_contract.functions.decimals().call()
-            usdc = raw / (10 ** decimals)
-            usdt = usdt_raw/(10 ** decimals)
-            stablecoin_balance = [
-                {"symbol": "USDC", "balance": usdc},
-                {"symbol": "USDT", "balance": usdt}
-            ]
+
+            tenant_id = self.dao.get_tenant_id_by_address(address)
+
+            stablecoin_balance = []
+            total_stablecoin_value = 0
+
+            # ======================================================
+            # CASE 1 — TENANT HAS NO CUSTOM TOKENS (DEFAULT TOKENS)
+            # ======================================================
+            if not self.tenant_dao.tenant_has_tokens(tenant_id):
+
+                default_tokens = [
+                    {"symbol": "USDC", "contract": self.usdc_contract},
+                    {"symbol": "USDT", "contract": self.usdt_contract},
+                    # {"symbol": "DAI", "contract": self.dai_contract},
+                ]
+
+                for token in default_tokens:
+                    try:
+                        decimals = token["contract"].functions.decimals().call()
+                        raw_balance = token["contract"].functions.balanceOf(address).call()
+
+                        balance = raw_balance / (10 ** decimals)
+
+                        stablecoin_balance.append({
+                            "symbol": token["symbol"],
+                            "balance": balance
+                        })
+
+                        total_stablecoin_value += balance
+
+                    except Exception:
+                        continue
+
+            # ======================================================
+            # CASE 2 — TENANT HAS CUSTOM TOKENS
+            # ======================================================
+            else:
+
+                from Business_Layer.onchain_sepolia_gateway.services.onchain_token_service import (
+                    OnchainTokenService,
+                )
+
+                tenant = self.tenant_dao.get_tenant_by_id(tenant_id)
+
+                tokens = self.token_dao.get_tokens_by_tenant(tenant_id)
+
+                for token in tokens:
+                    print(f"Checking balance for {token.token_symbol} at {token.contract_address}")
+
+                    token_service = OnchainTokenService()
+
+                    token_service.configure(
+                        tenant.rpc_url,
+                        token.contract_address,
+                        token.encrypted_private_key,
+                        tenant.chain_id
+                    )
+
+                    decimals = token.decimals or 18
+
+                    balance = token_service.get_balance_with_decimals(
+                        address,
+                        decimals
+                    )
+
+                    stablecoin_balance.append({
+                        "symbol": token.token_symbol,
+                        "balance": balance
+                    })
+
+                    total_stablecoin_value += balance
+
 
             return BalResponse(
-                totalFiat=fiat_total_balance,
-                stablecoins=stablecoin_balance,
-                totalStablecoinValue=usdc+usdt
+                            totalFiat=fiat_total_balance,
+                            stablecoins=stablecoin_balance,
+                            totalStablecoinValue=total_stablecoin_value
             )
+
         except HTTPException as he:
             raise he
         except Exception as e:
             raise HTTPException(status_code=500, detail=str(e))
+
         
     
     def list_wallets(self):
