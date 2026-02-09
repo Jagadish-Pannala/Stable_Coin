@@ -1,5 +1,6 @@
 """
 Wallet Service - Handles all wallet and transaction operations with Tenderly
+NOW WITH REDIS CACHING
 """
 
 import os
@@ -23,17 +24,14 @@ from API_Layer.Interfaces.transaction_history_interface import (
     EnumTransactionType
 )
 
-"""
-Wallet Service - Handles all wallet and transaction operations with Tenderly
-"""
-
-
+# Import Redis client
+from utils.redis_client import RedisClient
 
 load_dotenv()
 
 
 class TransactionService:
-    """Service for wallet operations using Tenderly API"""
+    """Service for wallet operations using Tenderly API with Redis caching"""
     
     def __init__(self):
         self.tenderly_account = os.getenv("TENDERLY_ACCOUNT")
@@ -54,6 +52,9 @@ class TransactionService:
             "X-Access-Key": self.tenderly_key,
             "Content-Type": "application/json"
         }
+        
+        # Initialize Redis client
+        self.redis = RedisClient()
     
     def transaction_history(
         self,
@@ -62,7 +63,12 @@ class TransactionService:
         offset: int = 0
     ):
         """
-        Fetch transaction history for a given address from Tenderly
+        Fetch transaction history for a given address
+        
+        CACHING STRATEGY:
+        1. Try to get full chain transactions from Redis cache
+        2. If cache hit: Filter for this address and return
+        3. If cache miss: Fetch from Tenderly, cache, filter, return
         
         Args:
             address: Wallet address to get transactions for (0x...)
@@ -78,7 +84,6 @@ class TransactionService:
         
         # Validate address format
         if not address or not address.startswith("0x") or len(address) != 42:
-            # logger.warning(f"Invalid address format: {address}")
             raise HTTPException(
                 status_code=400,
                 detail="Invalid Ethereum address format. Must be 0x followed by 40 hex characters"
@@ -86,27 +91,32 @@ class TransactionService:
         
         # Normalize address to lowercase
         address = address.lower()
-        # logger.info(f"Fetching transaction history for {address}")
+        logger.info(f"📋 Fetching transaction history for {address}")
+        
+        # ========== STEP 1: TRY CACHE ==========
+        
+        cached_all_txs = self.redis.get_full_chain_transactions()
+        
+        if cached_all_txs is not None:
+            logger.info("✅ Using cached chain transactions")
+            # Filter for this user and return
+            return self._filter_transactions_for_address(cached_all_txs, address)
+        
+        # ========== STEP 2: CACHE MISS - FETCH FROM TENDERLY ==========
+        
+        logger.info("❌ Cache miss - Fetching from Tenderly")
         
         # Build the API URL for Virtual TestNets
-        # Virtual TestNets require vnetId in the URL path
         url = f"{self.base_url}/account/{self.tenderly_account}/project/{self.tenderly_project}/vnets/{self.network_id}/transactions"
         
-        # Query parameters to filter by address
+        # Query parameters (address is ignored by Tenderly, but we keep it for clarity)
         params = {
-            "address": address,
-            "limit": min(limit, 100),  # Cap at 100
+            "address": address,  # Ignored by Tenderly
+            "limit": min(limit, 100),
             "offset": offset,
             "sort": "blockNumber",
-            "order": "desc"  # Most recent first
+            "order": "desc"
         }
-        
-        # DEBUG: Log the URL and credentials
-        # logger.info(f"Tenderly URL: {url}")
-        # logger.info(f"Account: {self.tenderly_account}")
-        # logger.info(f"Project: {self.tenderly_project}")
-        # logger.info(f"Network ID: {self.network_id}")
-        # logger.info(f"Access Key: {self.tenderly_key[:10]}...")  # Log first 10 chars only
         
         # Make request to Tenderly API
         response = requests.get(
@@ -116,21 +126,14 @@ class TransactionService:
             timeout=10
         )
         
-        # DEBUG: Log response
-        # logger.info(f"Tenderly API Response Status: {response.status_code}")
-        if response.status_code != 200:
-            logger.info(f"Tenderly API Response: {response.text}")
-        
         # Check for HTTP errors
         if response.status_code == 401:
-            # logger.error("Unauthorized: Check your Tenderly API key")
             raise HTTPException(
                 status_code=401,
                 detail="Unauthorized: Invalid Tenderly credentials"
             )
         
         if response.status_code == 404:
-            # logger.error("Not Found: Check account and project slugs")
             raise HTTPException(
                 status_code=404,
                 detail="Tenderly project or account not found"
@@ -138,7 +141,6 @@ class TransactionService:
         
         if response.status_code != 200:
             error_detail = response.json().get("error", "Unknown error")
-            # logger.error(f"Tenderly API error ({response.status_code}): {error_detail}")
             raise HTTPException(
                 status_code=response.status_code,
                 detail=f"Tenderly API error: {error_detail}"
@@ -146,56 +148,101 @@ class TransactionService:
         
         # Parse response
         response_data = response.json()
-        # print("response_data:", response_data)
-        # Tenderly returns transactions as a list directly
-        if isinstance(response_data, list):
-            transactions = response_data
-        else:
-            transactions = response_data.get("transactions", [])
         
-        # logger.info(f"Retrieved {len(transactions)} transactions")
+        if isinstance(response_data, list):
+            all_transactions = response_data
+        else:
+            all_transactions = response_data.get("transactions", [])
+        
+        logger.info(f"📦 Retrieved {len(all_transactions)} total chain transactions from Tenderly")
+        
+        # ========== STEP 3: CACHE THE FULL CHAIN DATA ==========
+        
+        self.redis.set_full_chain_transactions(all_transactions, ttl=300)  # 5 min cache
+        
+        # ========== STEP 4: FILTER FOR THIS USER ==========
+        
+        return self._filter_transactions_for_address(all_transactions, address)
+    
+    def _filter_transactions_for_address(self, all_transactions: list, address: str) -> list:
+        """
+        Filter full chain transactions for a specific address
+        
+        Args:
+            all_transactions: All chain transactions from Tenderly
+            address: Address to filter for (lowercase)
+            
+        Returns:
+            List of transactions relevant to this address
+        """
         result = []
-        print("transactions:", transactions[:2])
-        for tx in transactions:
+        
+        for tx in all_transactions:
             my_dict = {}
             from_address = tx.get("from", "").lower()
             asset = self.parse_asset(tx)
-            if asset == "USDC":
+            
+            if asset == "USDC" or asset == "USDT":
                 to_address = self.parse_to_address(tx)
             else:
                 to_address = tx.get("to", "").lower()
-            if from_address == address.lower() or to_address == address.lower():
+            
+            # Only include if this address is involved
+            if from_address == address or to_address == address:
+                
                 if tx.get('rpc_method') == "eth_sendRawTransaction" and asset == "ETH":
                     my_dict['from_address'] = from_address
                     my_dict['to_address'] = to_address
                     my_dict['amount'] = self.parse_amount(tx)
-                    my_dict['asset'] = self.parse_asset(tx)
+                    my_dict['asset'] = asset
                     my_dict['status'] = self.parse_status(tx)
                     my_dict['tx_hash'] = tx.get("tx_hash", "")
                     my_dict['timestamp'] = self.utc_iso_to_local_str(tx.get("created_at", ""))
                     my_dict['transaction_type'] = self._determine_transaction_type(
-                        tx, address, from_address, to_address)
+                        tx, address, from_address, to_address
+                    )
                     result.append(my_dict)
+                
                 elif tx.get('rpc_method') == "eth_sendRawTransaction" and (asset == "USDC" or asset == "USDT"):
                     my_dict['from_address'] = from_address
                     my_dict["to_address"] = to_address
                     my_dict['amount'] = self.parse_usdc_amount(tx)
-                    my_dict['asset'] = self.parse_asset(tx)
+                    my_dict['asset'] = asset
                     my_dict['status'] = self.parse_status(tx)
                     my_dict['tx_hash'] = tx.get("tx_hash", "")
                     my_dict['timestamp'] = self.utc_iso_to_local_str(tx.get("created_at", ""))
                     my_dict['transaction_type'] = self._determine_transaction_type(
-                        tx, address, from_address, to_address)
+                        tx, address, from_address, to_address
+                    )
                     result.append(my_dict)
-
+        
+        logger.info(f"🔍 Filtered to {len(result)} transactions for {address}")
         return result
-
+    
+    # ========== CACHE INVALIDATION METHOD ==========
+    
+    def invalidate_transaction_cache(self):
+        """
+        Invalidate the full chain transaction cache
+        
+        CALL THIS AFTER:
+        - /free-tokens (faucet claim)
+        - /transfer (user-to-user transfer)
+        
+        This forces the next history request to fetch fresh data from Tenderly
+        """
+        logger.info("🗑️  Invalidating transaction cache...")
+        self.redis.invalidate_full_chain_cache()
+    
+    # ========== PARSING HELPERS (UNCHANGED) ==========
+    
     def parse_to_address(self, tx):
         input_data = tx.get("input", "")
         if input_data and len(input_data) >= 74:
             to_address = "0x" + input_data[34:74]
             return to_address.lower()
         return ""
+    
     def parse_usdc_amount(self, tx):
         input_data = tx.get("input", "")
         if input_data and len(input_data) >= 138:
@@ -209,10 +256,10 @@ class TransactionService:
     def parse_asset(self, tx):
         ip = tx.get("input", "")
         to = tx.get("to", "")
-        if ip and ip!='0x' and to == '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48':
-            return f"USDC"
-        elif ip and ip!='0x' and to == '0xdac17f958d2ee523a2206206994597c13d831ec7':
-            return f"USDT"
+        if ip and ip != '0x' and to == '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48':
+            return "USDC"
+        elif ip and ip != '0x' and to == '0xdac17f958d2ee523a2206206994597c13d831ec7':
+            return "USDT"
         return "ETH"
     
     def parse_amount(self, tx):
@@ -221,11 +268,12 @@ class TransactionService:
             amount_wei = int(value, 16)
         else:
             amount_wei = int(value)
-    
+        
         # Convert wei to ether (1 ETH = 10^18 wei)
         amount_ether = amount_wei / (10 ** 18)
-    
+        
         return round(float(amount_ether), 8)
+    
     def parse_status(self, tx):
         status = tx.get("status", "").lower()
         if status == "success":
@@ -234,6 +282,7 @@ class TransactionService:
             return EnumStatus.FAILED
         else:
             return EnumStatus.PENDING
+    
     def utc_iso_to_local_str(self, iso_utc: str) -> str:
         if not iso_utc:
             return ""
@@ -246,6 +295,7 @@ class TransactionService:
 
         dt_local = dt_utc.astimezone()
         return dt_local.strftime("%d-%m-%Y %H:%M:%S")
+    
     def _determine_transaction_type(
         self,
         tx: dict,
@@ -261,15 +311,14 @@ class TransactionService:
         - SENT: from current user to another address
         - RECEIVED: from another address to current user
         """
-        # print("from_address:", from_address)
-        # print("to_address:", to_address)
-        # print("current_address:", current_address)
         # Check if this is a faucet transaction (CLAIMED)
         if from_address == self.faucet_address and to_address == current_address:
             return EnumTransactionType.CLAIMED
+        
         # check if received to faucet address (BURNED)
         if to_address == self.faucet_address and from_address == current_address:
             return EnumTransactionType.BURNED
+        
         # If current address is the sender
         if from_address == current_address:
             return EnumTransactionType.SENT
@@ -279,7 +328,4 @@ class TransactionService:
             return EnumTransactionType.RECEIVED
        
         # Default fallback
-        # # logger.warning(f"Unable to classify transaction type for {tx.get('hash')}")
         return EnumTransactionType.RECEIVED
-            
-            
