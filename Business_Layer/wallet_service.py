@@ -73,19 +73,20 @@ class WalletService:
         # self.user_dao = UserAuthDAO(self.db)
 
     def check_contract(self):
-        code = self.web3.eth.get_code(
-            self.web3.to_checksum_address("0xdAC17F958D2ee523a2206206994597C13D831ec7")
-        )
+        # code = self.web3.eth.get_code(
+        #     self.web3.to_checksum_address("0xdAC17F958D2ee523a2206206994597C13D831ec7")
+        # )
         # name = self.usdt_contract.functions.name().call()
         # symbol = self.usdt_contract.functions.symbol().call()
         # decimals = self.usdt_contract.functions.decimals().call()
 
         # print(name, symbol, decimals)
-        raw_balance = self.usdt_contract.functions.balanceOf(self.web3.to_checksum_address("0x0B31AA8d667B056c8911CAE4b62f2b5Af8C8271a")).call()
-        print(raw_balance)
+        # raw_balance = self.usdt_contract.functions.balanceOf(self.web3.to_checksum_address("0x0B31AA8d667B056c8911CAE4b62f2b5Af8C8271a")).call()
+        # print(raw_balance)
+        available_functions = self.usdt_contract.all_functions()
+        return [func.fn_name for func in available_functions]
 
 
-        # print(code)
 
     def create_wallet(self):
         account = Account.create()
@@ -249,9 +250,9 @@ class WalletService:
             # -----------------------------
             # Fiat Conversion
             # -----------------------------
-            if token_type in ["USDC", "USDT", "DAI", "SMD"]:
-                INR_RATE = Decimal("21.83")
-            elif token_type == "ETH":
+            if request.type.upper() in ["USDC", "USDT"]:
+                INR_RATE = Decimal("90.40")
+            elif request.type.upper() == "ETH":
                 INR_RATE = Decimal("100")
             else:
                 raise HTTPException(400, "Unsupported asset")
@@ -503,7 +504,7 @@ class WalletService:
 
                 transfer_type = "Burn"
 
-                INR_RATE = Decimal("21.83")
+                INR_RATE = Decimal("90.40")
                 token_inr_value = token_amount * INR_RATE
 
                 # Atomic DB transaction

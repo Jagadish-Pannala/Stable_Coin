@@ -33,7 +33,7 @@ class BankDetailService:
         return True
     def update_user_details(self, customer_id, request):
         try:
-            existing = self.dao.checking_user_by_customer_id(customer_id)
+            existing = self.dao.get_user_by_customer_id(customer_id)
             if not existing:
                 raise HTTPException(
                     status_code=404,
@@ -41,7 +41,7 @@ class BankDetailService:
                 )
             self._is_valid_email(request.mail)
             self._is_strong_password(request.password)
-            user = self.user_dao.update_user_details(customer_id, request)
+            user = self.dao.update_user_details(customer_id, request)
             return user
         except HTTPException as he:
             raise he
@@ -99,6 +99,12 @@ class BankDetailService:
                 raise HTTPException(
                     status_code=HTTPStatus.BAD_REQUEST,
                     detail="Invalid wallet address"
+                )
+            existing_payee = self.dao.get_payee_by_wallet_address_and_user_id(request.wallet_address, user.id)
+            if existing_payee:
+                raise HTTPException(
+                    status_code=HTTPStatus.BAD_REQUEST,
+                    detail="Payee with this wallet address already exists"
                 )
             payee_id = self.dao.create_payee(user.id, request)
             return payee_id.id
