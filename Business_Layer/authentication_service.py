@@ -174,6 +174,7 @@ class AuthenticationService:
 
             faucet_request = FaucetRequest(
                 address=wallet_address,
+                type="ETH",
                 amount=500
             )
 
