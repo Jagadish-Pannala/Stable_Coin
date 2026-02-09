@@ -27,6 +27,10 @@ class UserAuthDAO:
     def get_user_by_customer_id(self, customer_id: str) -> Optional[BankCustomerDetails]:
         return self.db.query(BankCustomerDetails).filter_by(customer_id=customer_id).first()
     
+    def get_user_by_customer_id_tenant_id(self, customer_id: str, tenant_id: str) -> Optional[BankCustomerDetails]:
+        return self.db.query(BankCustomerDetails).filter_by(customer_id=customer_id, tenant_id=tenant_id).first()
+    
+    
     def checking_customer_existing(self, customer_id, tenant_id, phone_number):
         return self.db.query(BankCustomerDetails).filter(
             BankCustomerDetails.tenant_id == tenant_id,
@@ -66,8 +70,8 @@ class UserAuthDAO:
         self.db.commit()
         self.db.refresh(new_user)
         return True
-    def create_wallet_for_user(self, customer_id, wallet_address, encrypted_private_key):
-        user = self.db.query(BankCustomerDetails).filter_by(customer_id=customer_id).first()
+    def create_wallet_for_user(self, customer_id, tenant_id, wallet_address, encrypted_private_key):
+        user = self.db.query(BankCustomerDetails).filter_by(customer_id=customer_id, tenant_id=tenant_id).first()
         if not user:
             return None
         user.wallet_address = wallet_address

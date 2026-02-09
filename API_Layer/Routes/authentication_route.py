@@ -8,6 +8,7 @@ from ..Interfaces.authentication import (
     LoginResponse,
     Userdetails,
     CreateUserRequest,
+    CreateWalletRequest,
     CreateUserResponse,
     CreateWalletResponse,
     UpdateUserRequest,
@@ -50,17 +51,14 @@ async def create_user(
         )
 
 # creating  wallets for existing users
-@router.post("/create_wallet/{customer_id}", response_model=CreateWalletResponse)
+@router.post("/create_wallet/customer_id", response_model=CreateWalletResponse)
 async def create_wallet_for_user(
-    customer_id: str,
+    request: CreateWalletRequest,
     db: Session = Depends(get_db)
 ):
     try:
         service = AuthenticationService(db)
-        result = await run_in_threadpool(
-            service.create_wallet_for_user,
-            customer_id
-        )
+        result = service.create_wallet_for_user(request)
         return CreateWalletResponse(
             wallet_address=result,
             message="Wallet created successfully"

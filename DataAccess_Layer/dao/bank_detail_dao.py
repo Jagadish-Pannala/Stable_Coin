@@ -20,7 +20,7 @@ class BankDetailDAO:
         user.name = request.name
         user.password = request.password
         user.phone_number = request.phone_number
-        user.bank_account_number = request.bank_account_number
+        user.is_active = request.is_active
         self.db.commit()
         self.db.refresh(user)
         return True
@@ -43,7 +43,7 @@ class BankDetailDAO:
         user = self.db.query(BankCustomerDetails).filter_by(customer_id=customer_id, tenant_id=tenant_id).first()
         if not user:
             return None
-        user.fiat_bank_balance = (user.fiat_bank_balance or 0) + fiat_balance
+        user.fiat_bank_balance = float(user.fiat_bank_balance or 0) + fiat_balance
         self.db.commit()
         self.db.refresh(user)
         return user.fiat_bank_balance
@@ -73,3 +73,5 @@ class BankDetailDAO:
         self.db.delete(payee)
         self.db.commit()
         return True
+    def get_payee_by_wallet_address_and_user_id(self, wallet_address, user_id):
+        return self.db.query(CustomerPayee).filter_by(wallet_address=wallet_address, customer_id=user_id).first()

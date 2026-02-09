@@ -1,14 +1,13 @@
 from decimal import Decimal
 from eth_account import Account
 from fastapi import HTTPException, status
-from web3 import Web3
 from utils.web3_client import Web3Client
 from storage.wallet_repository import WalletRepository
 from API_Layer.Interfaces.wallet_interface import BalanceResponse, SearchResponse, TransferRequest, BalResponse
 from dotenv import load_dotenv
-from .authentication_service import AuthenticationService
 from DataAccess_Layer.dao.wallet_dao import WalletDAO
-from Business_Layer.transaction_history_service import TransactionService
+from DataAccess_Layer.dao.tenant_dao import TenantDAO
+from DataAccess_Layer.dao.token_dao import TokenDAOfrom Business_Layer.transaction_history_service import TransactionService
 import os
 from DataAccess_Layer.utils.session import get_db
 import logging
@@ -72,6 +71,8 @@ class WalletService:
             abi=ERC20_ABI)
         self.db = db
         self.dao = WalletDAO(self.db)
+        self.tenant_dao = TenantDAO(self.db)
+        self.token_dao = TokenDAO(self.db)
         # self.user_dao = UserAuthDAO(self.db)
 
     def _invalidate_transaction_cache(self):
@@ -83,19 +84,20 @@ class WalletService:
             logger.warning(f"Cache invalidation failed (non-critical): {e}")
     
     def check_contract(self):
-        code = self.web3.eth.get_code(
-            self.web3.to_checksum_address("0xdAC17F958D2ee523a2206206994597C13D831ec7")
-        )
+        # code = self.web3.eth.get_code(
+        #     self.web3.to_checksum_address("0xdAC17F958D2ee523a2206206994597C13D831ec7")
+        # )
         # name = self.usdt_contract.functions.name().call()
         # symbol = self.usdt_contract.functions.symbol().call()
         # decimals = self.usdt_contract.functions.decimals().call()
 
         # print(name, symbol, decimals)
-        raw_balance = self.usdt_contract.functions.balanceOf(self.web3.to_checksum_address("0x0B31AA8d667B056c8911CAE4b62f2b5Af8C8271a")).call()
-        print(raw_balance)
+        # raw_balance = self.usdt_contract.functions.balanceOf(self.web3.to_checksum_address("0x0B31AA8d667B056c8911CAE4b62f2b5Af8C8271a")).call()
+        # print(raw_balance)
+        available_functions = self.usdt_contract.all_functions()
+        return [func.fn_name for func in available_functions]
 
 
-        # print(code)
 
     def create_wallet(self):
         account = Account.create()
@@ -105,30 +107,100 @@ class WalletService:
     def check_balance(self, address: str):
         try:
             if not self.web3.is_address(address):
-                raise HTTPException(400, "Invalid address")
-            fiat_total_balance = self.dao.get_fiat_bank_balance_by_wallet_address(address)
+                raise HTTPException(status_code=400, detail="Invalid address")
+
             address = self.web3.to_checksum_address(address)
+
+            fiat_total_balance = self.dao.get_fiat_bank_balance_by_wallet_address(address)
+
+            # Native ETH balance (optional)
             balance_wei = self.web3.eth.get_balance(address)
             balance_eth = self.web3.from_wei(balance_wei, "ether")
-            raw = self.usdc_contract.functions.balanceOf(address).call()
-            usdt_raw = self.usdt_contract.functions.balanceOf(address).call()
-            decimals = self.usdc_contract.functions.decimals().call()
-            usdc = raw / (10 ** decimals)
-            usdt = usdt_raw/(10 ** decimals)
-            stablecoin_balance = [
-                {"symbol": "USDC", "balance": usdc},
-                {"symbol": "USDT", "balance": usdt}
-            ]
+
+            tenant_id = self.dao.get_tenant_id_by_address(address)
+
+            stablecoin_balance = []
+            total_stablecoin_value = 0
+
+            # ======================================================
+            # CASE 1 — TENANT HAS NO CUSTOM TOKENS (DEFAULT TOKENS)
+            # ======================================================
+            if not self.tenant_dao.tenant_has_tokens(tenant_id):
+
+                default_tokens = [
+                    {"symbol": "USDC", "contract": self.usdc_contract},
+                    {"symbol": "USDT", "contract": self.usdt_contract},
+                    # {"symbol": "DAI", "contract": self.dai_contract},
+                ]
+
+                for token in default_tokens:
+                    try:
+                        decimals = token["contract"].functions.decimals().call()
+                        raw_balance = token["contract"].functions.balanceOf(address).call()
+
+                        balance = raw_balance / (10 ** decimals)
+
+                        stablecoin_balance.append({
+                            "symbol": token["symbol"],
+                            "balance": balance
+                        })
+
+                        total_stablecoin_value += balance
+
+                    except Exception:
+                        continue
+
+            # ======================================================
+            # CASE 2 — TENANT HAS CUSTOM TOKENS
+            # ======================================================
+            else:
+
+                from Business_Layer.onchain_sepolia_gateway.services.onchain_token_service import (
+                    OnchainTokenService,
+                )
+
+                tenant = self.tenant_dao.get_tenant_by_id(tenant_id)
+
+                tokens = self.token_dao.get_tokens_by_tenant(tenant_id)
+
+                for token in tokens:
+                    print(f"Checking balance for {token.token_symbol} at {token.contract_address}")
+
+                    token_service = OnchainTokenService()
+
+                    token_service.configure(
+                        tenant.rpc_url,
+                        token.contract_address,
+                        token.encrypted_private_key,
+                        tenant.chain_id
+                    )
+
+                    decimals = token.decimals or 18
+
+                    balance = token_service.get_balance_with_decimals(
+                        address,
+                        decimals
+                    )
+
+                    stablecoin_balance.append({
+                        "symbol": token.token_symbol,
+                        "balance": balance
+                    })
+
+                    total_stablecoin_value += balance
+
 
             return BalResponse(
-                totalFiat=fiat_total_balance,
-                stablecoins=stablecoin_balance,
-                totalStablecoinValue=usdc+usdt
+                            totalFiat=fiat_total_balance,
+                            stablecoins=stablecoin_balance,
+                            totalStablecoinValue=total_stablecoin_value
             )
+
         except HTTPException as he:
             raise he
         except Exception as e:
             raise HTTPException(status_code=500, detail=str(e))
+
         
     
     def list_wallets(self):
@@ -176,24 +248,21 @@ class WalletService:
 
     def create_free_tokens(self, request):
         try:
-
-            from_address = self.web3.to_checksum_address(
-                os.getenv("MAIN_WALLET_ADDRESS")
-            )
-
-            private_key = self.dao.get_private_key_by_address(from_address)
-
             if not self.web3.is_address(request.address):
                 raise HTTPException(400, "Invalid address")
 
             to_address = self.web3.to_checksum_address(request.address)
 
-            # Fiat Calculation
-            
-            token_amount = Decimal(str(request.amount))
+            tenant_id = self.dao.get_tenant_id_by_address(to_address)
 
+            token_amount = Decimal(str(request.amount))
+            token_type = request.type.upper()
+
+            # -----------------------------
+            # Fiat Conversion
+            # -----------------------------
             if request.type.upper() in ["USDC", "USDT"]:
-                INR_RATE = Decimal("21.83")
+                INR_RATE = Decimal("90.40")
             elif request.type.upper() == "ETH":
                 INR_RATE = Decimal("100")
             else:
@@ -206,79 +275,129 @@ class WalletService:
             )
 
             if cust_balance < token_inr_value:
-                raise HTTPException(
-                    400,
-                    "Insufficient fiat balance"
+                raise HTTPException(400, "Insufficient fiat balance")
+
+            # ======================================================
+            # CASE 1 — TENANT HAS NO TOKENS (DEFAULT NETWORK TRANSFER)
+            # ======================================================
+            if not self.tenant_dao.tenant_has_tokens(tenant_id):
+
+                from_address = self.web3.to_checksum_address(
+                    os.getenv("MAIN_WALLET_ADDRESS")
                 )
 
-            nonce = self.web3.eth.get_transaction_count(
-                from_address,
-                "pending"
-            )
+                private_key = self.dao.get_private_key_by_address(from_address)
 
-            # Build TX
-            
-            if request.type.upper() == "ETH":
-
-                tx = {
-                    "from": from_address,
-                    "to": to_address,
-                    "value": self.web3.to_wei(token_amount, "ether"),
-                    "nonce": nonce,
-                    "chainId": self.web3.eth.chain_id,
-                    "gasPrice": self.web3.eth.gas_price
-                }
-
-                tx["gas"] = 21000
-
-            else:
-
-                contract = (
-                    self.usdc_contract
-                    if request.type.upper() == "USDC"
-                    else self.usdt_contract
+                nonce = self.web3.eth.get_transaction_count(
+                    from_address,
+                    "pending"
                 )
 
-                decimals = contract.functions.decimals().call()
+                if token_type == "ETH":
 
-                amount = int(token_amount * (10 ** decimals))
+                    tx = {
+                        "from": from_address,
+                        "to": to_address,
+                        "value": self.web3.to_wei(token_amount, "ether"),
+                        "nonce": nonce,
+                        "chainId": self.web3.eth.chain_id,
+                        "gasPrice": self.web3.eth.gas_price,
+                        "gas": 21000
+                    }
 
-                tx = contract.functions.transfer(
-                    to_address,
-                    amount
-                ).build_transaction({
-                    "from": from_address,
-                    "nonce": nonce,
-                    "chainId": self.web3.eth.chain_id,
-                    "gasPrice": self.web3.eth.gas_price
-                })
+                else:
+                    contract = (
+                        self.usdc_contract
+                        if token_type == "USDC"
+                        else self.usdt_contract
+                    )
 
-                tx["gas"] = self.web3.eth.estimate_gas(tx)
+                    decimals = contract.functions.decimals().call()
+                    amount = int(token_amount * (10 ** decimals))
 
-            # Sign + Send
-            
-            signed_tx = self.web3.eth.account.sign_transaction(
-                tx,
-                private_key
-            )
+                    tx = contract.functions.transfer(
+                        to_address,
+                        amount
+                    ).build_transaction({
+                        "from": from_address,
+                        "nonce": nonce,
+                        "chainId": self.web3.eth.chain_id,
+                        "gasPrice": self.web3.eth.gas_price,
+                    })
 
-            raw_tx = (
+                    tx["gas"] = self.web3.eth.estimate_gas(tx)
+
+                signed_tx = self.web3.eth.account.sign_transaction(
+                    tx,
+                    private_key
+                )
+
+                raw_tx = (
                     signed_tx.raw_transaction
                     if hasattr(signed_tx, "raw_transaction")
                     else signed_tx.rawTransaction
                 )
 
-            tx_hash = self.web3.eth.send_raw_transaction(raw_tx)
+                tx_hash = self.web3.eth.send_raw_transaction(raw_tx)
 
-            receipt = self.web3.eth.wait_for_transaction_receipt(tx_hash)
+                receipt = self.web3.eth.wait_for_transaction_receipt(tx_hash)
 
-            if receipt.status != 1:
-                raise HTTPException(400, "Transaction failed")
+                if receipt.status != 1:
+                    raise HTTPException(400, "Transaction failed")
 
-            
-            # Atomic Fiat Settlement
-            
+            # ======================================================
+            # CASE 2 — TENANT HAS OWN TOKEN CONFIG
+            # ======================================================
+            else:
+                print("Tenant tokens detected → Onchain mint")
 
+                from Business_Layer.onchain_sepolia_gateway.services.onchain_token_service import (
+                    OnchainTokenService,
+                )
+
+                tenant = self.tenant_dao.get_tenant_by_id(tenant_id)
+
+                rpc_url = tenant.rpc_url
+                chain_id = tenant.chain_id
+
+                # Fetch token dynamically
+                token_config = self.token_dao.get_token_by_symbol(
+                    tenant_id,
+                    token_type
+                )
+
+                if not token_config:
+                    raise HTTPException(
+                        400,
+                        f"{token_type} not configured for tenant"
+                    )
+
+                if not token_config.mint_enabled:
+                    raise HTTPException(
+                        400,
+                        f"Mint disabled for {token_type}"
+                    )
+
+                contract_address = token_config.contract_address
+                private_key = token_config.encrypted_private_key
+                decimals = token_config.decimals or 18
+
+                token_service = OnchainTokenService()
+                token_service.configure(
+                    rpc_url,
+                    contract_address,
+                    private_key,
+                    chain_id
+                )
+
+                tx_hash = token_service.mint(
+                    to_address,
+                    int(token_amount * (10 ** decimals))
+                )
+
+            # ======================================================
+            # Fiat Settlement
+            # ======================================================
             new_balance = cust_balance - token_inr_value
 
             self.dao.update_fiat_bank_balance_by_wallet_address(
@@ -294,14 +413,16 @@ class WalletService:
             self._invalidate_transaction_cache()
 
             return {
-                "tx_hash": tx_hash.hex(),
+                "tx_hash": tx_hash if isinstance(tx_hash, str) else tx_hash.hex(),
                 "status": "confirmed",
                 "new_fiat_bank_balance": float(new_balance)
             }
+
         except HTTPException as he:
             raise he
         except Exception as e:
-            raise HTTPException(status_code=500, detail=str(e))
+            raise HTTPException(500, detail=str(e))
+
 
 
 
@@ -397,7 +518,7 @@ class WalletService:
 
                 transfer_type = "Burn"
 
-                INR_RATE = Decimal("21.83")
+                INR_RATE = Decimal("90.40")
                 token_inr_value = token_amount * INR_RATE
 
                 # Atomic DB transaction

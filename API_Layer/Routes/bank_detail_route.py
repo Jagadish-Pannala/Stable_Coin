@@ -164,7 +164,7 @@ def get_payees(customer_id: str, db: Session = Depends(get_db)):
         raise HTTPException(
             status_code=500,
             detail=str(e))
-@router.delete("/payee/{payee_id}", response_model=CreatePayeeResponse)
+@router.delete("/payee/payee_id", response_model=CreatePayeeResponse)
 def delete_payee(customer_id: str, payee_id: int, db: Session = Depends(get_db)):
     try:
         service = BankDetailService(db)

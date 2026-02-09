@@ -37,6 +37,10 @@ class CreateUserRequest(BaseModel):
     password: str
     phone_number: str
     is_active: Optional[bool] = True
+
+class CreateWalletRequest(BaseModel):
+    customer_id: str
+    tenant_id: int
 class UpdateAdminRequest(BaseModel):
     mail: str
     name: str
