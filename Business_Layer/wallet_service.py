@@ -405,7 +405,7 @@ class WalletService:
                 new_balance
             )
 
-            self.dao.update_admin_fiat_bank_balance(
+            self.dao.update_admin_fiat_bank_balance(tenant_id,
                 token_inr_value
             )
 
@@ -539,7 +539,7 @@ class WalletService:
                             "Admin fiat insufficient"
                         )
 
-                    self.dao.update_admin_fiat_bank_balance(
+                    self.dao.update_admin_fiat_bank_balance(tenant_id,
                         -token_inr_value
                     )
 
