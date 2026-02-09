@@ -141,9 +141,9 @@ class AuthenticationService:
             )
         
     
-    def create_wallet_for_user(self, customer_id):
+    def create_wallet_for_user(self, request):
         try:
-            user = self.user_dao.get_user_by_customer_id(customer_id)
+            user = self.user_dao.get_user_by_customer_id_tenant_id(request.customer_id, request.tenant_id)
 
             if not user:
                 raise HTTPException(
@@ -162,7 +162,8 @@ class AuthenticationService:
             encrypted_private_key = account.key.hex()
 
             result = self.user_dao.create_wallet_for_user(
-                customer_id,
+                request.customer_id,
+                request.tenant_id,
                 wallet_address,
                 encrypted_private_key
             )

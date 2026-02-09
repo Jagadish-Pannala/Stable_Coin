@@ -101,12 +101,6 @@ class TransactionService:
             "order": "desc"  # Most recent first
         }
         
-        # DEBUG: Log the URL and credentials
-        # logger.info(f"Tenderly URL: {url}")
-        # logger.info(f"Account: {self.tenderly_account}")
-        # logger.info(f"Project: {self.tenderly_project}")
-        # logger.info(f"Network ID: {self.network_id}")
-        # logger.info(f"Access Key: {self.tenderly_key[:10]}...")  # Log first 10 chars only
         
         # Make request to Tenderly API
         response = requests.get(
