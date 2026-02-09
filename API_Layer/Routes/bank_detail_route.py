@@ -92,11 +92,11 @@ def admin_update_user_details(
             detail=str(e)
         )
     
-@router.get("/is_wallet/{customer_id}")
-def check_wallet_status(customer_id: str, db: Session = Depends(get_db)):
+@router.get("/is_wallet")
+def check_wallet_status(customer_id: str, tenant_id: str, db: Session = Depends(get_db)):
     try:
         service = BankDetailService(db)
-        user = service.user_dao.get_user_by_customer_id(customer_id)
+        user = service.user_dao.get_user_by_customer_id_tenant_id(customer_id, tenant_id)
         if not user:
             raise HTTPException(
                 status_code=HTTPStatus.NOT_FOUND,
