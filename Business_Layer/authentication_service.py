@@ -1,10 +1,15 @@
 import random
+from decimal import Decimal
 import re
 from fastapi import HTTPException, status
 from passlib.context import CryptContext
 from sqlalchemy.orm import Session
+from utils.web3_client import Web3Client
+import os
+from dotenv import load_dotenv
 # import bcrypt
 from DataAccess_Layer.dao.user_authentication import UserAuthDAO
+from DataAccess_Layer.dao.wallet_dao import WalletDAO
 from DataAccess_Layer.utils.database import set_db_session, remove_db_session
 from eth_account import Account
 from API_Layer.Interfaces.wallet_interface import FaucetRequest
@@ -16,8 +21,10 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 class AuthenticationService:
     def __init__(self,db: Session):
+        self.web3 = Web3Client().w3
         self.db = db
         self.user_dao = UserAuthDAO(self.db)
+        self.wallet_dao = WalletDAO(self.db)
 
     def __del__(self):
         remove_db_session()
@@ -167,21 +174,27 @@ class AuthenticationService:
                 wallet_address,
                 encrypted_private_key
             )
+            print('address', wallet_address)
+            print('encrypted_private_key', encrypted_private_key)
+            wallet_address = self.web3.to_checksum_address(wallet_address)
+            amount = Decimal(str(1))
+            result = self.add_eth_wallet_creation(wallet_address, amount)
+            return wallet_address
 
-            # ✅ Lazy import to avoid circular dependency
-            from Business_Layer.wallet_service import WalletService
+            # # ✅ Lazy import to avoid circular dependency
+            # from Business_Layer.wallet_service import WalletService
 
-            wallet_service = WalletService(self.db)
+            # wallet_service = WalletService(self.db)
 
-            faucet_request = FaucetRequest(
-                address=wallet_address,
-                type="ETH",
-                amount=1
-            )
+            # faucet_request = FaucetRequest(
+            #     address=wallet_address,
+            #     type="ETH",
+            #     amount=1
+            # )
 
-            wallet_service.create_free_tokens(faucet_request)
+            # wallet_service.create_free_tokens(faucet_request)
 
-            return result
+            # return result
 
         except HTTPException as he:
             raise he
@@ -219,4 +232,28 @@ class AuthenticationService:
         
     def get_users(self):
         return self.user_dao.get_all_users()
+    
+    def add_eth_wallet_creation(self, to_address, amount):
+        load_dotenv()
+        main_wallet = os.getenv("MAIN_WALLET_ADDRESS")
+        private_key = self.wallet_dao.get_private_key_by_address(main_wallet)
+        nonce = self.web3.eth.get_transaction_count(main_wallet, "pending")
+        tx = {
+                    "from": main_wallet,
+                    "to": to_address,
+                    "value": self.web3.to_wei(amount, "ether"),
+                    "nonce": nonce,
+                    "chainId": self.web3.eth.chain_id,
+                    "gasPrice": self.web3.eth.gas_price,
+                    "gas": 21000
+                }
+        signed_tx = self.web3.eth.account.sign_transaction(tx, private_key)
+        raw_tx = (
+                signed_tx.raw_transaction
+                if hasattr(signed_tx, "raw_transaction")
+                else signed_tx.rawTransaction
+            )
+        tx_hash = self.web3.eth.send_raw_transaction(raw_tx)        
+        return tx_hash
+        
 

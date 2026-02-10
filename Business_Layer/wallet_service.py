@@ -95,8 +95,11 @@ class WalletService:
         # print(name, symbol, decimals)
         # raw_balance = self.usdt_contract.functions.balanceOf(self.web3.to_checksum_address("0x0B31AA8d667B056c8911CAE4b62f2b5Af8C8271a")).call()
         # print(raw_balance)
-        available_functions = self.usdt_contract.all_functions()
-        return [func.fn_name for func in available_functions]
+        # available_functions = self.usdt_contract.all_functions()
+        # return [func.fn_name for func in available_functions]
+        eth_balance = self.web3.eth.get_balance("0xBD999986F41756bb5E766b7781C4EBEB853ecD1c")
+        balance_eth = self.web3.from_wei(eth_balance, "ether")
+        return balance_eth
 
 
 
@@ -262,7 +265,7 @@ class WalletService:
             # Fiat Conversion
             # -----------------------------
             if request.type.upper() in ["USDC", "USDT"]:
-                INR_RATE = Decimal("90.40")
+                INR_RATE = Decimal("90.3")
             elif request.type.upper() == "ETH":
                 INR_RATE = Decimal("100")
             else:
@@ -447,6 +450,11 @@ class WalletService:
 
             if req.from_address.lower() == req.to_address.lower():
                 raise HTTPException(400, "Sender and receiver cannot be same")
+            
+            # checking if the from address is the main wallet
+            if req.from_address.lower() == os.getenv("MAIN_WALLET_ADDRESS").lower():
+                raise HTTPException(400, "Sender cannot be the main wallet, If you to get tokens using another api '/free-tokens'")
+            
             
             if not self.tenant_dao.tenant_has_tokens(tenant_id):
 

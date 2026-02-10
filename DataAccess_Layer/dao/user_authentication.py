@@ -99,3 +99,4 @@ class UserAuthDAO:
         self.db.commit()
         self.db.refresh(user)
         return user
+    
