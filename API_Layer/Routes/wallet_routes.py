@@ -29,7 +29,7 @@ def checK_contract(address: str):
 #         message="Wallet created"
 #     )
 
-@router.get("/balance/{address}", response_model=BalResponse)
+@router.get("/balance/", response_model=BalResponse)
 def balance(tenant_id: str = Query(...),
     wallet_address: str = Query(...), db: Session = Depends(get_db)):
     try:
