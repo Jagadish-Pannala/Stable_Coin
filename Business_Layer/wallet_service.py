@@ -109,7 +109,7 @@ class WalletService:
         self.repo.save(account.address, account.key.hex())
         return account
 
-    def check_balance(self, address: str):
+    def check_balance(self, address: str, tenant_id: int) -> BalResponse:
         try:
             if not self.web3.is_address(address):
                 raise HTTPException(status_code=400, detail="Invalid address")
@@ -122,7 +122,7 @@ class WalletService:
             balance_wei = self.web3.eth.get_balance(address)
             balance_eth = self.web3.from_wei(balance_wei, "ether")
 
-            tenant_id = self.dao.get_tenant_id_by_address(address)
+            # tenant_id = self.dao.get_tenant_id_by_address(address)
 
             stablecoin_balance = []
             total_stablecoin_value = 0
