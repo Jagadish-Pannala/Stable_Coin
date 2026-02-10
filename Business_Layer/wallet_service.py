@@ -12,6 +12,8 @@ from Business_Layer.transaction_history_service import TransactionService
 import os
 from DataAccess_Layer.utils.session import get_db
 import logging
+from utils.redis_client import RedisClient
+
 
 logger = logging.getLogger(__name__)
 
@@ -75,6 +77,8 @@ class WalletService:
         self.tenant_dao = TenantDAO(self.db)
         self.token_dao = TokenDAO(self.db)
         # self.user_dao = UserAuthDAO(self.db)
+        self.redis = RedisClient()
+
 
     def _invalidate_transaction_cache(self):
         """Invalidate transaction history cache after blockchain transactions"""
@@ -111,6 +115,15 @@ class WalletService:
                 raise HTTPException(status_code=400, detail="Invalid address")
 
             address = self.web3.to_checksum_address(address)
+
+            # ================= CACHE READ =================
+            cached_balance = self.redis.get_wallet_balance(address.lower())
+            
+            if cached_balance:
+                logger.info(f"✅ Wallet balance served from cache for {address.lower()}")
+                return BalResponse(**cached_balance)
+
+
 
             fiat_total_balance = self.dao.get_fiat_bank_balance_by_wallet_address(address)
 
@@ -189,12 +202,16 @@ class WalletService:
 
                     total_stablecoin_value += balance
 
+            response = BalResponse(
+                totalFiat=fiat_total_balance,
+                stablecoins=stablecoin_balance,
+                totalStablecoinValue=total_stablecoin_value
+            ).dict()
 
-            return BalResponse(
-                            totalFiat=fiat_total_balance,
-                            stablecoins=stablecoin_balance,
-                            totalStablecoinValue=total_stablecoin_value
-            )
+            # ================= CACHE WRITE =================
+            self.redis.set_wallet_balance(address.lower(), response, ttl=60)
+
+            return BalResponse(**response)
 
         except HTTPException as he:
             raise he
@@ -412,6 +429,14 @@ class WalletService:
             # invalidate cache
             self._invalidate_transaction_cache()
 
+            # Invalidate wallet balance cache
+            self.redis.invalidate_wallet_balance(to_address.lower())
+
+            logger.info(
+                f"🗑️ Wallet balance cache invalidated for {to_address.lower()}"
+            )
+
+
             return {
                 "tx_hash": tx_hash if isinstance(tx_hash, str) else tx_hash.hex(),
                 "status": "confirmed",
@@ -609,6 +634,14 @@ class WalletService:
                 # Send tx (do NOT wait for receipt)
                 tx_hash = token_service.transfer(to_addr, token_amount)
                 transfer_type = "Transfer"
+
+            # Invalidate wallet balance cache for both wallets
+            self.redis.invalidate_wallet_balance(from_addr.lower())
+            self.redis.invalidate_wallet_balance(to_addr.lower())
+
+            logger.info(
+                f"🗑️ Wallet balance cache invalidated for {from_addr.lower()} and {to_addr.lower()}"
+            )
 
             return {
                 "tx_hash": tx_hash.hex() if not isinstance(tx_hash, str) else tx_hash,

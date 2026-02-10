@@ -171,3 +171,49 @@ class RedisClient:
         except Exception as e:
             logger.error(f"Redis FLUSH error: {e}")
             return False
+
+        # ========== WALLET BALANCE CACHE ==========
+
+    def get_wallet_balance(self, address: str):
+        if not self.is_connected():
+            return None
+
+        key = f"wallet:balance:{address}"
+        try:
+            data = self.client.get(key)
+            if data:
+                logger.info(f"✅ Cache HIT: Wallet balance {address}")
+                return json.loads(data)
+            logger.info(f"❌ Cache MISS: Wallet balance {address}")
+            return None
+        except Exception as e:
+            logger.error(f"Redis GET error: {e}")
+            return None
+
+
+    def set_wallet_balance(self, address: str, balance_data: dict, ttl: int = 60):
+        if not self.is_connected():
+            return False
+
+        key = f"wallet:balance:{address}"
+        try:
+            self.client.setex(key, ttl, json.dumps(balance_data))
+            logger.info(f"💾 Cached wallet balance {address} (TTL={ttl}s)")
+            return True
+        except Exception as e:
+            logger.error(f"Redis SET error: {e}")
+            return False
+
+
+    def invalidate_wallet_balance(self, address: str):
+        if not self.is_connected():
+            return False
+
+        key = f"wallet:balance:{address}"
+        try:
+            self.client.delete(key)
+            logger.info(f"🗑️ Invalidated wallet balance cache {address}")
+            return True
+        except Exception as e:
+            logger.error(f"Redis DELETE error: {e}")
+            return False
