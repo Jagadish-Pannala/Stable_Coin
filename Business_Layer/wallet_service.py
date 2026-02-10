@@ -250,14 +250,14 @@ class WalletService:
         except Exception as e:
             raise HTTPException(status_code=500, detail=str(e))
 
-    def create_free_tokens(self, request):
+    def create_free_tokens(self, request, tenant_id):
         try:
             if not self.web3.is_address(request.address):
                 raise HTTPException(400, "Invalid address")
 
             to_address = self.web3.to_checksum_address(request.address)
 
-            tenant_id = self.dao.get_tenant_id_by_address(to_address)
+            # tenant_id = self.dao.get_tenant_id_by_address(to_address)
 
             token_amount = Decimal(str(request.amount))
             token_type = request.type.upper()
