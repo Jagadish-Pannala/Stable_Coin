@@ -10,10 +10,10 @@ from DataAccess_Layer.utils.session import get_db
 router = APIRouter()
 
 @router.get("/check-contract")
-def checK_contract():
+def checK_contract(address: str):
     try:
         service = WalletService()
-        result = service.check_contract()
+        result = service.check_contract(address)
         return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

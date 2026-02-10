@@ -1,6 +1,7 @@
 from decimal import Decimal
 from eth_account import Account
 from fastapi import HTTPException, status
+from DataAccess_Layer.utils.price import get_usd_to_inr_rate
 from utils.web3_client import Web3Client
 from storage.wallet_repository import WalletRepository
 from API_Layer.Interfaces.wallet_interface import BalanceResponse, SearchResponse, TransferRequest, BalResponse
@@ -84,7 +85,7 @@ class WalletService:
         except Exception as e:
             logger.warning(f"Cache invalidation failed (non-critical): {e}")
     
-    def check_contract(self):
+    def check_contract(self, address):
         # code = self.web3.eth.get_code(
         #     self.web3.to_checksum_address("0xdAC17F958D2ee523a2206206994597C13D831ec7")
         # )
@@ -97,7 +98,7 @@ class WalletService:
         # print(raw_balance)
         # available_functions = self.usdt_contract.all_functions()
         # return [func.fn_name for func in available_functions]
-        eth_balance = self.web3.eth.get_balance("0xBD999986F41756bb5E766b7781C4EBEB853ecD1c")
+        eth_balance = self.web3.eth.get_balance(address)
         balance_eth = self.web3.from_wei(eth_balance, "ether")
         return balance_eth
 
@@ -265,7 +266,7 @@ class WalletService:
             # Fiat Conversion
             # -----------------------------
             if request.type.upper() in ["USDC", "USDT"]:
-                INR_RATE = Decimal("90.3")
+                INR_RATE = get_usd_to_inr_rate()
             elif request.type.upper() == "ETH":
                 INR_RATE = Decimal("100")
             else:
@@ -455,6 +456,17 @@ class WalletService:
             if req.from_address.lower() == os.getenv("MAIN_WALLET_ADDRESS").lower():
                 raise HTTPException(400, "Sender cannot be the main wallet, If you to get tokens using another api '/free-tokens'")
             
+            if req.to_address.lower() == os.getenv("MAIN_WALLET_ADDRESS").lower():
+                admin_balance = self.dao.get_fiat_bank_balance_by_wallet_address(
+                    os.getenv("MAIN_WALLET_ADDRESS")
+                )
+                INR_RATE = get_usd_to_inr_rate()
+                print("inr rate", INR_RATE)
+                token_inr_value = Decimal(str(req.amount)) * INR_RATE
+                print("token inr value", token_inr_value)
+                if admin_balance < token_inr_value:
+                    raise HTTPException(400, "Admin has insufficient fiat balance to burn tokens")
+            
             
             if not self.tenant_dao.tenant_has_tokens(tenant_id):
 
@@ -486,6 +498,7 @@ class WalletService:
                 if balance < amount:
                     raise HTTPException(400, "Insufficient token balance")
 
+
                 # 6 Nonce (pending safe)
                 
                 nonce = self.web3.eth.get_transaction_count(
@@ -505,6 +518,7 @@ class WalletService:
                 })
 
                 tx["gas"] = self.web3.eth.estimate_gas(tx)
+                print(f"Estimated gas: {tx['gas']}")
                 
                 # 8 Sign + Send
                 
@@ -531,21 +545,9 @@ class WalletService:
                 
                 transfer_type = "Transfer"
 
-                if to_addr.lower() == main_wallet.lower():
+                if to_addr.lower() == main_wallet.lower() and tx_hash!="":
 
                     transfer_type = "Burn"
-
-                    INR_RATE = Decimal("90.40")
-                    token_inr_value = token_amount * INR_RATE
-
-                    # Atomic DB transaction
-                    admin_balance = self.dao.get_fiat_bank_balance_by_wallet_address(main_wallet)
-
-                    if admin_balance < token_inr_value:
-                        raise HTTPException(
-                            400,
-                            "Admin fiat insufficient"
-                        )
 
                     self.dao.update_admin_fiat_bank_balance(tenant_id,
                         -token_inr_value
@@ -557,7 +559,7 @@ class WalletService:
                         )
                     )
 
-                    new_balance = cust_balance + token_inr_value
+                    new_balance = float(cust_balance) + float(token_inr_value)
 
                     self.dao.update_fiat_bank_balance_by_wallet_address(
                         from_addr,
@@ -566,7 +568,7 @@ class WalletService:
                     tx_hash = tx_hash if isinstance(tx_hash, str) else tx_hash.hex()
 
                     return {
-                        "tx_hash": tx_hash.hex(),
+                        "tx_hash": tx_hash,
                         "status": "confirmed",
                         "type": transfer_type,
                         "old_fiat_bank_balance": cust_balance,
