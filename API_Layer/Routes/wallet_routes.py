@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.concurrency import run_in_threadpool
 from Business_Layer.wallet_service import WalletService
 from ..Interfaces.wallet_interface import (CreateWalletResponse, BalanceResponse, TransferRequest, 
@@ -30,10 +30,11 @@ def checK_contract(address: str):
 #     )
 
 @router.get("/balance/{address}", response_model=BalResponse)
-def balance(address: str, db: Session = Depends(get_db)):
+def balance(tenant_id: str = Query(...),
+    wallet_address: str = Query(...), db: Session = Depends(get_db)):
     try:
         service = WalletService(db)
-        result = service.check_balance(address)
+        result = service.check_balance(wallet_address, tenant_id)
         return result
     except HTTPException as he:
         raise he
