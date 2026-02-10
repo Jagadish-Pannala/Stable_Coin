@@ -435,9 +435,9 @@ class WalletService:
             if not self.web3.is_address(req.from_address):
                 raise HTTPException(400, "Invalid address")
 
-            to_address = self.web3.to_checksum_address(req.from_address)
+            # to_address = self.web3.to_checksum_address(req.from_address)
 
-            tenant_id = self.dao.get_tenant_id_by_address(to_address)
+            tenant_id = req.tenant_id
             
             asset = req.asset.upper()
             
