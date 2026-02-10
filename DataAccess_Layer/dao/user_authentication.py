@@ -99,3 +99,15 @@ class UserAuthDAO:
         self.db.commit()
         self.db.refresh(user)
         return user
+    
+    def get_main_wallet_address(self, tenant_id: int) -> Optional[str]:
+        main_wallet = (
+            self.db.query(BankCustomerDetails.wallet_address)
+            .filter(
+                BankCustomerDetails.tenant_id == tenant_id,
+                BankCustomerDetails.customer_id.ilike("ADMI%")  # starts with ADMI
+            )
+            .first()
+        )
+        return main_wallet[0] if main_wallet else None
+    

@@ -33,6 +33,7 @@ class VerifyAddressResponse(BaseModel):
     is_valid: bool
 
 class TransferRequest(BaseModel):
+    tenant_id: int
     from_address: str
     to_address: str
     amount: float

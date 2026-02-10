@@ -1,6 +1,7 @@
 from decimal import Decimal
 from eth_account import Account
 from fastapi import HTTPException, status
+from DataAccess_Layer.utils.price import get_usd_to_inr_rate
 from utils.web3_client import Web3Client
 from storage.wallet_repository import WalletRepository
 from API_Layer.Interfaces.wallet_interface import BalanceResponse, SearchResponse, TransferRequest, BalResponse
@@ -88,7 +89,7 @@ class WalletService:
         except Exception as e:
             logger.warning(f"Cache invalidation failed (non-critical): {e}")
     
-    def check_contract(self):
+    def check_contract(self, address):
         # code = self.web3.eth.get_code(
         #     self.web3.to_checksum_address("0xdAC17F958D2ee523a2206206994597C13D831ec7")
         # )
@@ -99,8 +100,11 @@ class WalletService:
         # print(name, symbol, decimals)
         # raw_balance = self.usdt_contract.functions.balanceOf(self.web3.to_checksum_address("0x0B31AA8d667B056c8911CAE4b62f2b5Af8C8271a")).call()
         # print(raw_balance)
-        available_functions = self.usdt_contract.all_functions()
-        return [func.fn_name for func in available_functions]
+        # available_functions = self.usdt_contract.all_functions()
+        # return [func.fn_name for func in available_functions]
+        eth_balance = self.web3.eth.get_balance(address)
+        balance_eth = self.web3.from_wei(eth_balance, "ether")
+        return balance_eth
 
 
 
@@ -109,7 +113,7 @@ class WalletService:
         self.repo.save(account.address, account.key.hex())
         return account
 
-    def check_balance(self, address: str):
+    def check_balance(self, address: str, tenant_id: int) -> BalResponse:
         try:
             if not self.web3.is_address(address):
                 raise HTTPException(status_code=400, detail="Invalid address")
@@ -131,7 +135,7 @@ class WalletService:
             balance_wei = self.web3.eth.get_balance(address)
             balance_eth = self.web3.from_wei(balance_wei, "ether")
 
-            tenant_id = self.dao.get_tenant_id_by_address(address)
+            # tenant_id = self.dao.get_tenant_id_by_address(address)
 
             stablecoin_balance = []
             total_stablecoin_value = 0
@@ -263,14 +267,14 @@ class WalletService:
         except Exception as e:
             raise HTTPException(status_code=500, detail=str(e))
 
-    def create_free_tokens(self, request):
+    def create_free_tokens(self, request, tenant_id):
         try:
             if not self.web3.is_address(request.address):
                 raise HTTPException(400, "Invalid address")
 
             to_address = self.web3.to_checksum_address(request.address)
 
-            tenant_id = self.dao.get_tenant_id_by_address(to_address)
+            # tenant_id = self.dao.get_tenant_id_by_address(to_address)
 
             token_amount = Decimal(str(request.amount))
             token_type = request.type.upper()
@@ -279,7 +283,7 @@ class WalletService:
             # Fiat Conversion
             # -----------------------------
             if request.type.upper() in ["USDC", "USDT"]:
-                INR_RATE = Decimal("90.40")
+                INR_RATE = get_usd_to_inr_rate()
             elif request.type.upper() == "ETH":
                 INR_RATE = Decimal("100")
             else:
@@ -456,9 +460,9 @@ class WalletService:
             if not self.web3.is_address(req.from_address):
                 raise HTTPException(400, "Invalid address")
 
-            to_address = self.web3.to_checksum_address(req.from_address)
+            # to_address = self.web3.to_checksum_address(req.from_address)
 
-            tenant_id = self.dao.get_tenant_id_by_address(to_address)
+            tenant_id = req.tenant_id
             
             asset = req.asset.upper()
             
@@ -472,6 +476,22 @@ class WalletService:
 
             if req.from_address.lower() == req.to_address.lower():
                 raise HTTPException(400, "Sender and receiver cannot be same")
+            
+            # checking if the from address is the main wallet
+            if req.from_address.lower() == os.getenv("MAIN_WALLET_ADDRESS").lower():
+                raise HTTPException(400, "Sender cannot be the main wallet, If you to get tokens using another api '/free-tokens'")
+            
+            if req.to_address.lower() == os.getenv("MAIN_WALLET_ADDRESS").lower():
+                admin_balance = self.dao.get_fiat_bank_balance_by_wallet_address(
+                    os.getenv("MAIN_WALLET_ADDRESS")
+                )
+                INR_RATE = get_usd_to_inr_rate()
+                print("inr rate", INR_RATE)
+                token_inr_value = Decimal(str(req.amount)) * INR_RATE
+                print("token inr value", token_inr_value)
+                if admin_balance < token_inr_value:
+                    raise HTTPException(400, "Admin has insufficient fiat balance to burn tokens")
+            
             
             if not self.tenant_dao.tenant_has_tokens(tenant_id):
 
@@ -503,6 +523,7 @@ class WalletService:
                 if balance < amount:
                     raise HTTPException(400, "Insufficient token balance")
 
+
                 # 6 Nonce (pending safe)
                 
                 nonce = self.web3.eth.get_transaction_count(
@@ -522,6 +543,7 @@ class WalletService:
                 })
 
                 tx["gas"] = self.web3.eth.estimate_gas(tx)
+                print(f"Estimated gas: {tx['gas']}")
                 
                 # 8 Sign + Send
                 
@@ -548,21 +570,9 @@ class WalletService:
                 
                 transfer_type = "Transfer"
 
-                if to_addr.lower() == main_wallet.lower():
+                if to_addr.lower() == main_wallet.lower() and tx_hash!="":
 
                     transfer_type = "Burn"
-
-                    INR_RATE = Decimal("90.40")
-                    token_inr_value = token_amount * INR_RATE
-
-                    # Atomic DB transaction
-                    admin_balance = self.dao.get_fiat_bank_balance_by_wallet_address(main_wallet)
-
-                    if admin_balance < token_inr_value:
-                        raise HTTPException(
-                            400,
-                            "Admin fiat insufficient"
-                        )
 
                     self.dao.update_admin_fiat_bank_balance(tenant_id,
                         -token_inr_value
@@ -574,7 +584,7 @@ class WalletService:
                         )
                     )
 
-                    new_balance = cust_balance + token_inr_value
+                    new_balance = float(cust_balance) + float(token_inr_value)
 
                     self.dao.update_fiat_bank_balance_by_wallet_address(
                         from_addr,
@@ -583,7 +593,7 @@ class WalletService:
                     tx_hash = tx_hash if isinstance(tx_hash, str) else tx_hash.hex()
 
                     return {
-                        "tx_hash": tx_hash.hex(),
+                        "tx_hash": tx_hash,
                         "status": "confirmed",
                         "type": transfer_type,
                         "old_fiat_bank_balance": cust_balance,
