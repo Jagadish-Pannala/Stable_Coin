@@ -46,10 +46,10 @@ def balance(tenant_id: str = Query(...),
 
 
 @router.post("/free-tokens")
-def create_free_tokens(address: str, type: AssetType, amount: float = 0.0, db: Session = Depends(get_db)):
+def create_free_tokens(address: str, type: AssetType, amount: float = 0.0, tenant_id: int = Query(...), db: Session = Depends(get_db)):
     try:
         service = WalletService(db)
-        result = service.create_free_tokens(FaucetRequest(address=address, type=type, amount=amount))
+        result = service.create_free_tokens(FaucetRequest(address=address, type=type, amount=amount), tenant_id)
 
         return result
 
