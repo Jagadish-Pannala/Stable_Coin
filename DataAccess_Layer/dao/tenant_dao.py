@@ -142,3 +142,10 @@ class TenantDAO:
             )
             .first()
         )
+    
+    def get_rpc_by_tenant_id(self, tenant_id: int) -> Optional[str]:
+
+        tenant = self.get_tenant_by_id(tenant_id)
+        if tenant:
+            return tenant.rpc_url
+        return None
