@@ -190,6 +190,20 @@ class AuthenticationService:
             print("Main wallet:", main_wallet)
             if request.tenant_id == 2:
                 amount = Decimal(str(0.01))
+                # Connect to tenant RPC
+                web3_rpc = Web3(Web3.HTTPProvider(rpc))
+
+                # Get main wallet ETH balance
+                balance_wei = web3_rpc.eth.get_balance(main_wallet)
+                balance_eth = Decimal(web3_rpc.from_wei(balance_wei, "ether"))
+
+                # Prevent central wallet going below 28 ETH
+                if balance_eth - amount < Decimal("28"):
+                    raise HTTPException(
+                        status_code=400,
+                        detail="Unable to create wallet: central wallet ETH balance too low"
+                    )
+                
             result = self.add_eth_wallet_creation(wallet_address, amount, main_wallet,rpc)
             result = self.user_dao.create_wallet_for_user(
                 request.customer_id,
