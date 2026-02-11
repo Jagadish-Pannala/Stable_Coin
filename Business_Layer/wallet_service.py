@@ -113,7 +113,7 @@ class WalletService:
         self.repo.save(account.address, account.key.hex())
         return account
 
-    def check_balance(self, address: str, tenant_id: int) -> BalResponse:
+    def check_balance(self, address: str) -> BalResponse:
         try:
             if not self.web3.is_address(address):
                 raise HTTPException(status_code=400, detail="Invalid address")
@@ -135,7 +135,7 @@ class WalletService:
             balance_wei = self.web3.eth.get_balance(address)
             balance_eth = self.web3.from_wei(balance_wei, "ether")
 
-            # tenant_id = self.dao.get_tenant_id_by_address(address)
+            tenant_id = self.dao.get_tenant_id_by_address(address)
 
             stablecoin_balance = []
             total_stablecoin_value = 0
@@ -267,14 +267,14 @@ class WalletService:
         except Exception as e:
             raise HTTPException(status_code=500, detail=str(e))
 
-    def create_free_tokens(self, request, tenant_id):
+    def create_free_tokens(self, request):
         try:
             if not self.web3.is_address(request.address):
                 raise HTTPException(400, "Invalid address")
 
             to_address = self.web3.to_checksum_address(request.address)
 
-            # tenant_id = self.dao.get_tenant_id_by_address(to_address)
+            tenant_id = self.dao.get_tenant_id_by_address(to_address)
 
             token_amount = Decimal(str(request.amount))
             token_type = request.type.upper()
@@ -460,9 +460,9 @@ class WalletService:
             if not self.web3.is_address(req.from_address):
                 raise HTTPException(400, "Invalid address")
 
-            # to_address = self.web3.to_checksum_address(req.from_address)
+            address = self.web3.to_checksum_address(req.from_address)
 
-            tenant_id = req.tenant_id
+            tenant_id = self.dao.get_tenant_id_by_address(address)
             
             asset = req.asset.upper()
             
