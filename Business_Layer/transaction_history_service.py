@@ -13,6 +13,7 @@ from dotenv import load_dotenv
 from fastapi import HTTPException
 import logging
 
+
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -24,8 +25,12 @@ from API_Layer.Interfaces.transaction_history_interface import (
     EnumTransactionType
 )
 
+from DataAccess_Layer.dao.wallet_dao import WalletDAO
 # Import Redis client
 from utils.redis_client import RedisClient
+
+from DataAccess_Layer.utils.session import get_db 
+
 
 load_dotenv()
 
@@ -33,7 +38,9 @@ load_dotenv()
 class TransactionService:
     """Service for wallet operations using Tenderly API with Redis caching"""
     
-    def __init__(self):
+    def __init__(self, db=None):
+        self.db = db
+        self.wallet_dao = WalletDAO(db)
         self.tenderly_account = os.getenv("TENDERLY_ACCOUNT")
         self.tenderly_project = os.getenv("TENDERLY_PROJECT")
         self.tenderly_key = os.getenv("TENDERLY_ACCESS_TOKEN")
@@ -82,6 +89,8 @@ class TransactionService:
             HTTPException: If API call fails or address is invalid
         """
         
+        tenant_id = self.wallet_dao.get_tenant_id_by_address(address)
+        print(tenant_id)
         # Validate address format
         if not address or not address.startswith("0x") or len(address) != 42:
             raise HTTPException(
@@ -92,77 +101,86 @@ class TransactionService:
         # Normalize address to lowercase
         address = address.lower()
         logger.info(f"📋 Fetching transaction history for {address}")
+
+        if tenant_id == 1:
         
-        # ========== STEP 1: TRY CACHE ==========
-        
-        cached_all_txs = self.redis.get_full_chain_transactions()
-        
-        if cached_all_txs is not None:
-            logger.info("✅ Using cached chain transactions")
-            # Filter for this user and return
-            return self._filter_transactions_for_address(cached_all_txs, address)
-        
-        # ========== STEP 2: CACHE MISS - FETCH FROM TENDERLY ==========
-        
-        logger.info("❌ Cache miss - Fetching from Tenderly")
-        
-        # Build the API URL for Virtual TestNets
-        url = f"{self.base_url}/account/{self.tenderly_account}/project/{self.tenderly_project}/vnets/{self.network_id}/transactions"
-        
-        # Query parameters (address is ignored by Tenderly, but we keep it for clarity)
-        params = {
-            "address": address,  # Ignored by Tenderly
-            "limit": min(limit, 100),
-            "offset": offset,
-            "sort": "blockNumber",
-            "order": "desc"
-        }
-        
-        # Make request to Tenderly API
-        response = requests.get(
-            url,
-            headers=self.headers,
-            params=params,
-            timeout=10
-        )
-        
-        # Check for HTTP errors
-        if response.status_code == 401:
-            raise HTTPException(
-                status_code=401,
-                detail="Unauthorized: Invalid Tenderly credentials"
+            # ========== STEP 1: TRY CACHE ==========
+            
+            cached_all_txs = self.redis.get_full_chain_transactions()
+            
+            if cached_all_txs is not None:
+                logger.info("✅ Using cached chain transactions")
+                # Filter for this user and return
+                return self._filter_transactions_for_address(cached_all_txs, address)
+            
+            # ========== STEP 2: CACHE MISS - FETCH FROM TENDERLY ==========
+            
+            logger.info("❌ Cache miss - Fetching from Tenderly")
+            
+            # Build the API URL for Virtual TestNets
+            url = f"{self.base_url}/account/{self.tenderly_account}/project/{self.tenderly_project}/vnets/{self.network_id}/transactions"
+            
+            # Query parameters (address is ignored by Tenderly, but we keep it for clarity)
+            params = {
+                "address": address,  # Ignored by Tenderly
+                "limit": min(limit, 100),
+                "offset": offset,
+                "sort": "blockNumber",
+                "order": "desc"
+            }
+            
+            # Make request to Tenderly API
+            response = requests.get(
+                url,
+                headers=self.headers,
+                params=params,
+                timeout=10
             )
+            
+            # Check for HTTP errors
+            if response.status_code == 401:
+                raise HTTPException(
+                    status_code=401,
+                    detail="Unauthorized: Invalid Tenderly credentials"
+                )
+            
+            if response.status_code == 404:
+                raise HTTPException(
+                    status_code=404,
+                    detail="Tenderly project or account not found"
+                )
+            
+            if response.status_code != 200:
+                error_detail = response.json().get("error", "Unknown error")
+                raise HTTPException(
+                    status_code=response.status_code,
+                    detail=f"Tenderly API error: {error_detail}"
+                )
+            
+            # Parse response
+            response_data = response.json()
+            
+            if isinstance(response_data, list):
+                all_transactions = response_data
+            else:
+                all_transactions = response_data.get("transactions", [])
+            
+            logger.info(f"📦 Retrieved {len(all_transactions)} total chain transactions from Tenderly")
+            
+            # ========== STEP 3: CACHE THE FULL CHAIN DATA ==========
+            
+            self.redis.set_full_chain_transactions(all_transactions, ttl=300)  # 5 min cache
+            
+            # ========== STEP 4: FILTER FOR THIS USER ==========
+            
+            return self._filter_transactions_for_address(all_transactions, address)
         
-        if response.status_code == 404:
-            raise HTTPException(
-                status_code=404,
-                detail="Tenderly project or account not found"
-            )
-        
-        if response.status_code != 200:
-            error_detail = response.json().get("error", "Unknown error")
-            raise HTTPException(
-                status_code=response.status_code,
-                detail=f"Tenderly API error: {error_detail}"
-            )
-        
-        # Parse response
-        response_data = response.json()
-        
-        if isinstance(response_data, list):
-            all_transactions = response_data
         else:
-            all_transactions = response_data.get("transactions", [])
+            from .onchain_sepolia_gateway.services.transaction_history import SepoliaTransactionService
+
+            sepolia_service = SepoliaTransactionService(self.db)
+            return sepolia_service.get_transactions(tenant_id, address, offset=offset, limit=limit)
         
-        logger.info(f"📦 Retrieved {len(all_transactions)} total chain transactions from Tenderly")
-        
-        # ========== STEP 3: CACHE THE FULL CHAIN DATA ==========
-        
-        self.redis.set_full_chain_transactions(all_transactions, ttl=300)  # 5 min cache
-        
-        # ========== STEP 4: FILTER FOR THIS USER ==========
-        
-        return self._filter_transactions_for_address(all_transactions, address)
     
     def _filter_transactions_for_address(self, all_transactions: list, address: str) -> list:
         """

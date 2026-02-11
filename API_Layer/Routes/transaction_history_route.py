@@ -3,7 +3,7 @@ Transaction History Routes
 Endpoints for retrieving wallet transaction history from Tenderly
 """
 
-from fastapi import APIRouter, HTTPException, Path, Query
+from fastapi import APIRouter, Depends, HTTPException, Path, Query
 from typing import List
 import logging
 
@@ -11,6 +11,8 @@ import logging
 from API_Layer.Interfaces.transaction_history_interface import (
     TransactionHistoryResponse)
 from Business_Layer.transaction_history_service import TransactionService
+from DataAccess_Layer.utils.session import get_db 
+from sqlalchemy.orm import Session
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -36,7 +38,8 @@ def transaction_history(
         0,
         ge=0,
         description="Number of transactions to skip for pagination"
-    )
+    ),
+    db: Session = Depends(get_db)
 ):
     """
     Get transaction history for a specific wallet address.
@@ -50,7 +53,7 @@ def transaction_history(
         
         logger.info(f"Fetching transaction history for {address}")
         
-        service = TransactionService()
+        service = TransactionService(db)
         result = service.transaction_history(address, limit=limit, offset=offset)
         
         logger.info(f"Successfully retrieved {len(result)} transactions for {address}")
