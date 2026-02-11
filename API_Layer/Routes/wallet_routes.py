@@ -30,11 +30,10 @@ def checK_contract(address: str):
 #     )
 
 @router.get("/balance", response_model=BalResponse)
-def balance(tenant_id: str = Query(...),
-    wallet_address: str = Query(...), db: Session = Depends(get_db)):
+def balance(wallet_address: str = Query(...), db: Session = Depends(get_db)):
     try:
         service = WalletService(db)
-        result = service.check_balance(wallet_address, tenant_id)
+        result = service.check_balance(wallet_address)
         return result
     except HTTPException as he:
         raise he
@@ -46,10 +45,10 @@ def balance(tenant_id: str = Query(...),
 
 
 @router.post("/free-tokens")
-def create_free_tokens(address: str, type: AssetType, amount: float = 0.0, tenant_id: int = Query(...), db: Session = Depends(get_db)):
+def create_free_tokens(address: str, type: AssetType, amount: float = 0.0,db: Session = Depends(get_db)):
     try:
         service = WalletService(db)
-        result = service.create_free_tokens(FaucetRequest(address=address, type=type, amount=amount), tenant_id)
+        result = service.create_free_tokens(FaucetRequest(address=address, type=type, amount=amount))
 
         return result
 
