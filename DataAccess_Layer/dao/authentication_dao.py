@@ -111,3 +111,14 @@ class UserAuthDAO:
         )
         return main_wallet[0] if main_wallet else None
     
+    def get_admin_details(self, tenant_id) -> Optional[BankCustomerDetails]:
+        admin = (
+            self.db.query(BankCustomerDetails)
+            .filter(
+                BankCustomerDetails.tenant_id == tenant_id,
+                BankCustomerDetails.customer_id.ilike("ADMI%")  # starts with ADMI
+            )
+            .first()
+        )
+        return admin
+    
