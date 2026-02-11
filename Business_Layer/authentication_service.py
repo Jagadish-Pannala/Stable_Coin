@@ -8,7 +8,7 @@ from utils.web3_client import Web3Client
 import os
 from dotenv import load_dotenv
 # import bcrypt
-from DataAccess_Layer.dao.user_authentication import UserAuthDAO
+from DataAccess_Layer.dao.authentication_dao import UserAuthDAO
 from DataAccess_Layer.dao.wallet_dao import WalletDAO
 from DataAccess_Layer.utils.database import set_db_session, remove_db_session
 from eth_account import Account

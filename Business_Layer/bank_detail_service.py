@@ -3,7 +3,7 @@ from DataAccess_Layer.dao.bank_detail_dao import BankDetailDAO
 from http import HTTPStatus
 import re
 
-from DataAccess_Layer.dao.user_authentication import UserAuthDAO
+from DataAccess_Layer.dao.authentication_dao import UserAuthDAO
 from utils.web3_client import Web3Client
 
 
