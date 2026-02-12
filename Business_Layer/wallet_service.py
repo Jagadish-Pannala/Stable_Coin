@@ -9,6 +9,7 @@ from dotenv import load_dotenv
 from DataAccess_Layer.dao.wallet_dao import WalletDAO
 from DataAccess_Layer.dao.tenant_dao import TenantDAO
 from DataAccess_Layer.dao.token_dao import TokenDAO
+from DataAccess_Layer.dao.authentication_dao import UserAuthDAO
 from Business_Layer.transaction_history_service import TransactionService
 import os
 from DataAccess_Layer.utils.session import get_db
@@ -77,7 +78,7 @@ class WalletService:
         self.dao = WalletDAO(self.db)
         self.tenant_dao = TenantDAO(self.db)
         self.token_dao = TokenDAO(self.db)
-        # self.user_dao = UserAuthDAO(self.db)
+        self.user_dao = UserAuthDAO(self.db)
         self.redis = RedisClient()
 
 
@@ -377,7 +378,18 @@ class WalletService:
                 )
 
                 tenant = self.tenant_dao.get_tenant_by_id(tenant_id)
-
+                admin = self.user_dao.get_admin_details(tenant_id)
+                admin_address = admin.wallet_address
+                admin_balance = token_service.get_balance_with_decimals(admin_address)
+                if admin_balance < token_amount:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=(
+                            f"Transfer cannot be processed: Admin wallet has only "
+                            f"{admin_balance} {token_type}, but {token_amount} requested."
+                        )
+                    )
+                private_key = admin.encrypted_private_key
                 rpc_url = tenant.rpc_url
                 chain_id = tenant.chain_id
 
@@ -400,7 +412,7 @@ class WalletService:
                     )
 
                 contract_address = token_config.contract_address
-                private_key = token_config.encrypted_private_key
+                # private_key = token_config.encrypted_private_key
                 decimals = token_config.decimals or 18
 
                 token_service = OnchainTokenService()
@@ -411,9 +423,9 @@ class WalletService:
                     chain_id
                 )
 
-                tx_hash = token_service.mint(
+                tx_hash = token_service.transfer(
                     to_address,
-                    int(token_amount * (10 ** decimals))
+                    token_amount
                 )
 
             # ======================================================
