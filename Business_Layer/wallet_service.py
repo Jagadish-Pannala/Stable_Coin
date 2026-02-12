@@ -620,11 +620,22 @@ class WalletService:
                 from Business_Layer.onchain_sepolia_gateway.services.onchain_token_service import (
                     OnchainTokenService,
                 )
-
+                
                 from_addr = self.web3.to_checksum_address(req.from_address)
                 to_addr = self.web3.to_checksum_address(req.to_address)
                 admin = self.user_dao.get_admin_details(tenant_id)
                 main_wallet = admin.wallet_address
+
+                admin_balance = self.dao.get_fiat_bank_balance_by_wallet_address(
+                    main_wallet
+                )
+                
+                INR_RATE = get_usd_to_inr_rate()
+                print("inr rate", INR_RATE)
+                token_inr_value = Decimal(str(req.amount)) * INR_RATE
+                print("token inr value", token_inr_value)
+                if admin_balance < token_inr_value:
+                    raise HTTPException(400, "Admin has insufficient fiat balance to burn tokens")
 
                 tenant = self.tenant_dao.get_tenant_by_id(tenant_id)
                 token_config = self.token_dao.get_token_by_symbol(
