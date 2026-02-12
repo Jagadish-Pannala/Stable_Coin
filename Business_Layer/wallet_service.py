@@ -414,7 +414,7 @@ class WalletService:
                     private_key,
                     chain_id
                 )
-                
+
                 admin_balance = token_service.get_balance_with_decimals(admin_address)
                 if admin_balance < token_amount:
                     raise HTTPException(
@@ -481,6 +481,8 @@ class WalletService:
             asset = req.asset.upper()
             
             # 1 Validate addresses
+
+            token_inr_value = Decimal("0")
 
             if not self.web3.is_address(req.from_address):
                 raise HTTPException(400, "Invalid sender address")
@@ -621,6 +623,8 @@ class WalletService:
 
                 from_addr = self.web3.to_checksum_address(req.from_address)
                 to_addr = self.web3.to_checksum_address(req.to_address)
+                admin = self.user_dao.get_admin_details(tenant_id)
+                main_wallet = admin.wallet_address
 
                 tenant = self.tenant_dao.get_tenant_by_id(tenant_id)
                 token_config = self.token_dao.get_token_by_symbol(
@@ -646,18 +650,40 @@ class WalletService:
                     tenant.chain_id
                 )
 
+                transfer_type = "Transfer"
                 # Balance check
-                balance = token_service.get_balance(from_addr)
+                balance = token_service.get_balance_with_decimals(from_addr)
                 decimals = token_config.decimals or 18
                 token_amount = Decimal(str(req.amount))
-                amount_units = int(token_amount * (Decimal(10) ** decimals))
+                amount_units = token_amount
 
                 if balance < amount_units:
                     raise HTTPException(400, "Insufficient token balance")
-
-                # Send tx (do NOT wait for receipt)
+                
                 tx_hash = token_service.transfer(to_addr, token_amount)
-                transfer_type = "Transfer"
+
+                if to_addr.lower() == main_wallet.lower() and tx_hash!="":
+
+                    transfer_type = "Burn"
+
+                    self.dao.update_admin_fiat_bank_balance(tenant_id,
+                        -token_inr_value
+                    )
+
+                    cust_balance = (
+                        self.dao.get_fiat_bank_balance_by_wallet_address(
+                            from_addr
+                        )
+                    )
+
+                    new_balance = float(cust_balance) + float(token_inr_value)
+
+                    self.dao.update_fiat_bank_balance_by_wallet_address(
+                        from_addr,
+                        new_balance
+                    )
+
+                
 
             # Invalidate wallet balance cache for both wallets
             self.redis.invalidate_wallet_balance(from_addr.lower())
