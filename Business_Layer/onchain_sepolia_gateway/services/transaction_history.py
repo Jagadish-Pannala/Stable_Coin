@@ -3,6 +3,7 @@ import requests
 from dotenv import load_dotenv
 from utils.redis_client import RedisClient
 from DataAccess_Layer.dao.token_dao import TokenDAO
+from DataAccess_Layer.dao.authentication_dao import UserAuthDAO
 
 
 load_dotenv()
@@ -19,20 +20,22 @@ class SepoliaTransactionService:
         self.alchemy_url = f"https://eth-sepolia.g.alchemy.com/v2/{self.alchemy_api_key}"
 
         self.redis = RedisClient()
+        self.user_dao =  UserAuthDAO(db)
 
     # ---------------------------------------------------------
     # Classify transaction type
     # ---------------------------------------------------------
-    def _classify_tx(self, tx, wallet):
+    def _classify_tx(self, tx, wallet,main_wallet ):
 
         from_addr = (tx.get("from") or "").lower()
         to_addr = (tx.get("to") or "").lower()
         wallet = wallet.lower()
 
-        if from_addr == ZERO_ADDRESS:
+
+        if from_addr == ZERO_ADDRESS or from_addr == main_wallet.lower():
             return "CLAIMED"
 
-        if to_addr == ZERO_ADDRESS:
+        if to_addr == ZERO_ADDRESS or to_addr == main_wallet.lower():
             return "BURNED"
 
         if from_addr == wallet:
@@ -103,6 +106,7 @@ class SepoliaTransactionService:
 
         wallet_address = wallet_address.lower()
 
+        main_wallet = self.user_dao.get_main_wallet_address(tenant_id)
         # ========= STEP 1: CACHE CHECK =========
         cached_all_txs = self.redis.get_full_chain_transactions()
 
@@ -151,7 +155,7 @@ class SepoliaTransactionService:
                 "amount": tx.get("value"),
                 "asset": tx.get("asset"),
                 "timestamp": tx.get("metadata", {}).get("blockTimestamp"),
-                "transaction_type": self._classify_tx(tx, wallet_address),
+                "transaction_type": self._classify_tx(tx, wallet_address,main_wallet ),
                 "status": "SUCCESS",
             })
 
