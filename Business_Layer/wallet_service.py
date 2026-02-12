@@ -380,15 +380,7 @@ class WalletService:
                 tenant = self.tenant_dao.get_tenant_by_id(tenant_id)
                 admin = self.user_dao.get_admin_details(tenant_id)
                 admin_address = admin.wallet_address
-                admin_balance = token_service.get_balance_with_decimals(admin_address)
-                if admin_balance < token_amount:
-                    raise HTTPException(
-                        status_code=400,
-                        detail=(
-                            f"Transfer cannot be processed: Admin wallet has only "
-                            f"{admin_balance} {token_type}, but {token_amount} requested."
-                        )
-                    )
+            
                 private_key = admin.encrypted_private_key
                 rpc_url = tenant.rpc_url
                 chain_id = tenant.chain_id
@@ -422,7 +414,17 @@ class WalletService:
                     private_key,
                     chain_id
                 )
-
+                
+                admin_balance = token_service.get_balance_with_decimals(admin_address)
+                if admin_balance < token_amount:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=(
+                            f"Transfer cannot be processed: Admin wallet has only "
+                            f"{admin_balance} {token_type}, but {token_amount} requested."
+                        )
+                    )
+                
                 tx_hash = token_service.transfer(
                     to_address,
                     token_amount
