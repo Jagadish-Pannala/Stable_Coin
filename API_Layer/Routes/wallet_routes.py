@@ -103,9 +103,10 @@ def verify_address(address: str):
 
 
 
-@router.get("/fiat_balance/{customer_id}")
+@router.get("/fiat_balance")
 async def get_fiat_balance_by_customer_id(
     customer_id: str,
+    tenant_id: int,
     db: Session = Depends(get_db)
 ):
     service = WalletService(db)
@@ -113,7 +114,7 @@ async def get_fiat_balance_by_customer_id(
     try:
         return await run_in_threadpool(
             service.get_fiat_balance_by_customer_id,
-            customer_id
+            customer_id,tenant_id
         )
     except HTTPException as he:
         raise he
