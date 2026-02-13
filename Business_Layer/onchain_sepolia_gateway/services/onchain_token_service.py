@@ -39,7 +39,7 @@ class OnchainTokenService:
         # -------- ABI caching -------- #
         if not OnchainTokenService.ABI_CACHE:
             with open(
-                r"C:\Users\MohanDTeja.Saladi\Desktop\StableCoinDemo\Stable_Coin\Business_Layer\onchain_sepolia_gateway\abi\pavescoin_abi.json"
+                r"Business_Layer\onchain_sepolia_gateway\abi\pavescoin_abi.json"
             ) as f:
                 OnchainTokenService.ABI_CACHE = json.load(f)
 
