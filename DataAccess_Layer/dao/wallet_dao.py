@@ -16,11 +16,14 @@ class WalletDAO:
         return user
 
     def get_fiat_balance_by_customer_id(
-        self, customer_id: str
+        self, customer_id: str, tenant_id: int
     ) -> Optional[Tuple[str, float]]:
         user = (
             self.db.query(BankCustomerDetails)
-            .filter(BankCustomerDetails.customer_id == customer_id)
+            .filter(
+                BankCustomerDetails.customer_id == customer_id,
+                BankCustomerDetails.tenant_id == tenant_id
+            )
             .first()
         )
         if not user:

@@ -774,8 +774,8 @@ class WalletService:
         
         
         
-    def get_fiat_balance_by_customer_id(self, customer_id: str):
-        result = self.dao.get_fiat_balance_by_customer_id(customer_id)
+    def get_fiat_balance_by_customer_id(self, customer_id: str,tenant_id: int):
+        result = self.dao.get_fiat_balance_by_customer_id(customer_id,tenant_id)
         if not result:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
