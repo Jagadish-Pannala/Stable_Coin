@@ -111,7 +111,7 @@ class WalletService:
 
     def create_wallet(self):
         account = Account.create()
-        self.repo.save(account.address, account.key.hex())
+        # self.repo.save(account.address, account.key.hex())
         return account
 
     def check_balance(self, address: str) -> BalResponse:
@@ -741,25 +741,23 @@ class WalletService:
 
     
     
-    def search_users(self, query: str):
+    def search_users(self, query: str, tenant_id: int, current_customer_id: str):
+        try:
 
-        # First search in bank_customer_details
-        users = self.dao.get_users_by_search_query(query)
+            # First search in bank_customer_details
+            users = self.dao.get_users_by_search_query(query, tenant_id, current_customer_id)
+            # print("user details", users[0].customer_id if users else "No users found"   )
+            if not users:
+                raise HTTPException(status_code=404, detail="No users found matching the query")
 
-        # If found → return immediately
-        if users:
-            return [
-                {
-                    "customer_id": user.customer_id,
-                    "name": user.name,
-                    "phone_number": user.phone_number,
-                    "wallet_address": user.wallet_address
-                }
-                for user in users
-            ]
-    def search_payees(self, customer_id: str, query: str):
+            return users
+        except HTTPException as he:
+            raise he
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
+    def search_payees(self, customer_id: str, tenant_id: int, query: str):
 
-        payees = self.dao.search_payees_for_customer(customer_id, query)
+        payees = self.dao.search_payees_for_customer(customer_id, tenant_id, query)
 
         return [
             {

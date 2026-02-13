@@ -61,4 +61,8 @@ class SearchResponse(BaseModel):
     name: str
     phone_number: Optional[str] = None
     wallet_address: str
+class SearchUsersRequest(BaseModel):
+    query: str
+    tenant_id: int
+    current_customer_id: str
 

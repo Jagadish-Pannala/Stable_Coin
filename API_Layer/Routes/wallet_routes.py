@@ -18,16 +18,16 @@ def checK_contract(address: str):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-# @router.post("/create", response_model=CreateWalletResponse)
-# def create_wallet():
-#     service = WalletService()
-#     acc = service.create_wallet()
-#     return CreateWalletResponse(
-#         success=True,
-#         address=acc.address,
-#         private_key=acc.key.hex(),
-#         message="Wallet created"
-#     )
+@router.post("/create", response_model=CreateWalletResponse)
+def create_wallet():
+    service = WalletService()
+    acc = service.create_wallet()
+    return CreateWalletResponse(
+        success=True,
+        address=acc.address,
+        private_key=acc.key.hex(),
+        message="Wallet created"
+    )
 
 @router.get("/balance", response_model=BalResponse)
 def balance(wallet_address: str = Query(...), db: Session = Depends(get_db)):
@@ -123,15 +123,20 @@ async def get_fiat_balance_by_customer_id(
 
 
 @router.get("/search-users", response_model=list[SearchResponse])
-def search_users(query: str, db: Session = Depends(get_db)):
-    service = WalletService(db)
-    return service.search_users(query)
-
-@router.get("/search-payees", response_model=list[SearchResponse])
-def search_payees(customer_id: str, query: str, db: Session = Depends(get_db)):
+def search_users(query: str, tenant_id: int, current_customer_id: str, db: Session = Depends(get_db)):
     try:
         service = WalletService(db)
-        result = service.search_payees(customer_id, query)
+        return service.search_users(query, tenant_id, current_customer_id)
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/search-payees", response_model=list[SearchResponse])
+def search_payees(customer_id: str, tenant_id: int, query: str, db: Session = Depends(get_db)):
+    try:
+        service = WalletService(db)
+        result = service.search_payees(customer_id, tenant_id, query)
         return result
     except HTTPException as he:
         raise he

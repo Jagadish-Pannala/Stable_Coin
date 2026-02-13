@@ -1,3 +1,4 @@
+
 from sqlalchemy.orm import Session
 from DataAccess_Layer.models.model import BankCustomerDetails, CustomerPayee
 from typing import Optional, List ,Tuple
@@ -65,9 +66,14 @@ class WalletDAO:
         return admin.fiat_bank_balance
 
     
-    def get_users_by_search_query(self, query: str) -> List[BankCustomerDetails]:
+    def get_users_by_search_query(self, query: str, tenant_id: int, current_customer_id: str) -> List[BankCustomerDetails]:
         search_pattern = f"%{query}%"
         users = self.db.query(BankCustomerDetails).filter(
+            (BankCustomerDetails.tenant_id == tenant_id) &
+            (BankCustomerDetails.customer_id != current_customer_id) & 
+            (BankCustomerDetails.customer_id.notilike("ADMI%")) & # Exclude admin accounts
+            (BankCustomerDetails.wallet_address != None) & # Exclude users without wallet addresses
+
             (BankCustomerDetails.name.ilike(search_pattern)) |
             (BankCustomerDetails.phone_number.ilike(search_pattern)) |
             (BankCustomerDetails.wallet_address.ilike(search_pattern))
@@ -75,21 +81,30 @@ class WalletDAO:
         return users
     # check payees for particular customer and return results
     
-    def search_payees_for_customer(self, customer_id: str, query: str) -> list[CustomerPayee]:
+    def search_payees_for_customer(self, customer_id: str, tenant_id: int, query: str):
+
         search_pattern = f"%{query}%"
 
         return (
             self.db.query(CustomerPayee)
+            .join(
+                BankCustomerDetails,
+                CustomerPayee.customer_id == BankCustomerDetails.id
+            )
             .filter(
-                CustomerPayee.customer_id == customer_id,
+                (BankCustomerDetails.customer_id == customer_id) &
+                (BankCustomerDetails.tenant_id == tenant_id) &
                 (
-                    CustomerPayee.payee_name.ilike(search_pattern) |
-                    CustomerPayee.wallet_address.ilike(search_pattern) |
-                    CustomerPayee.phone_number.ilike(search_pattern)
+                    (CustomerPayee.payee_name.ilike(search_pattern)) |
+                    (CustomerPayee.wallet_address.ilike(search_pattern)) |
+                    (CustomerPayee.phone_number.ilike(search_pattern))
                 )
             )
             .all()
         )
+
+
+        
     
     def get_tenant_id_by_address(self, wallet_address: str) -> Optional[int]:
         user = self.db.query(BankCustomerDetails).filter_by(wallet_address=wallet_address).first()

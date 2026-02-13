@@ -87,9 +87,9 @@ class BankDetailService:
                 status_code=HTTPStatus.INTERNAL_SERVER_ERROR,
                 detail=str(e)
             )
-    def create_payee(self, customer_id, request):
+    def create_payee(self, customer_id, tenant_id, request):
         try:
-            user = self.dao.get_user_by_customer_id(customer_id)
+            user = self.dao.get_user_by_customer_id_and_tenant_id(customer_id, tenant_id)
             if not user:
                 raise HTTPException(
                     status_code=HTTPStatus.NOT_FOUND,
@@ -115,9 +115,9 @@ class BankDetailService:
                 status_code=HTTPStatus.INTERNAL_SERVER_ERROR,
                 detail=str(e)
             )
-    def get_payees(self, customer_id):
+    def get_payees(self, customer_id, tenant_id):
         try:
-            user = self.dao.get_user_by_customer_id(customer_id)
+            user = self.dao.get_user_by_customer_id_and_tenant_id(customer_id, tenant_id)
             if not user:
                 raise HTTPException(
                     status_code=HTTPStatus.NOT_FOUND,
@@ -133,9 +133,9 @@ class BankDetailService:
                 status_code=HTTPStatus.INTERNAL_SERVER_ERROR,
                 detail=str(e)
             )
-    def delete_payee(self, customer_id, payee_id):
+    def delete_payee(self, customer_id, tenant_id, payee_id):
         try:
-            user = self.dao.get_user_by_customer_id(customer_id)
+            user = self.dao.get_user_by_customer_id_and_tenant_id(customer_id, tenant_id)
             if not user:
                 raise HTTPException(
                     status_code=HTTPStatus.NOT_FOUND,

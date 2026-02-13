@@ -136,12 +136,13 @@ def add_fiat_balance(
 @router.post("/payee/{customer_id}", response_model=CreatePayeeResponse)
 def create_payee(
     customer_id: str,
+    tenant_id: int,
     request: CreatePayeeRequest,
     db: Session = Depends(get_db)
 ):
     try:
         service = BankDetailService(db)
-        payee_id = service.create_payee(customer_id, request)
+        payee_id = service.create_payee(customer_id, tenant_id, request)
         return CreatePayeeResponse(
             payee_id=payee_id,
             message="Payee created successfully"
@@ -153,10 +154,10 @@ def create_payee(
             status_code=500,
             detail=str(e))
 @router.get("/payees/{customer_id}", response_model=list[PayeeDetails])
-def get_payees(customer_id: str, db: Session = Depends(get_db)):
+def get_payees(customer_id: str, tenant_id: int, db: Session = Depends(get_db)):
     try:
         service = BankDetailService(db)
-        payees = service.get_payees(customer_id)
+        payees = service.get_payees(customer_id, tenant_id)
         return payees
     except HTTPException as he:
         raise he
