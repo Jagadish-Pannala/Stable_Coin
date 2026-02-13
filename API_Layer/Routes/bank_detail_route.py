@@ -166,10 +166,10 @@ def get_payees(customer_id: str, tenant_id: int, db: Session = Depends(get_db)):
             status_code=500,
             detail=str(e))
 @router.delete("/payee/payee_id", response_model=CreatePayeeResponse)
-def delete_payee(customer_id: str, payee_id: int, db: Session = Depends(get_db)):
+def delete_payee(customer_id: str, payee_id: int, tenant_id: int, db: Session = Depends(get_db)):
     try:
         service = BankDetailService(db)
-        result = service.delete_payee(customer_id, payee_id)
+        result = service.delete_payee(customer_id, tenant_id,payee_id)
         if not result:
             raise HTTPException(
                 status_code=HTTPStatus.NOT_FOUND,
