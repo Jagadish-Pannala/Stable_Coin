@@ -16,6 +16,8 @@ from ..Interfaces.authentication import (
 )
 
 from Business_Layer.authentication_service import AuthenticationService
+from Business_Layer.secure_wallet_service import SecureWalletManager
+from Business_Layer.utils.decrypt_password import decrypt_password
 from DataAccess_Layer.utils.session import get_db 
 
 router = APIRouter()
@@ -90,5 +92,28 @@ async def login_user(
             status_code=500,
             detail=str(e)
         )
-
-
+@router.post("/create_secure_wallet/")
+def create_secure_wallet(request: CreateWalletRequest, db: Session = Depends(get_db)):
+    try:
+        service = SecureWalletManager(db)
+        result = service.create_wallet_with_mnemonic(request)
+        return result
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=str(e)
+        )
+@router.post("/check-password/")
+def check_password(request: CreateWalletRequest, db: Session = Depends(get_db)):
+    try:
+        result = decrypt_password(request.customer_id, request.tenant_id, db)
+        return result
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=str(e)
+        )
