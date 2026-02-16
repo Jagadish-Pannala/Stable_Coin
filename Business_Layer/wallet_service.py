@@ -107,7 +107,15 @@ class WalletService:
         balance_eth = self.web3.from_wei(eth_balance, "ether")
         return balance_eth
 
-
+    def get_admin_wallet(self, user_address: int):
+        if not self.web3.is_address(user_address):
+            raise HTTPException(status_code=400, detail="Invalid address")
+        
+        tenant_id = self.dao.get_tenant_id_by_address(user_address)
+        admin = self.user_dao.get_admin_details(tenant_id)
+        if not admin:
+            raise HTTPException(status_code=404, detail="Admin user not found for tenant")
+        return admin.wallet_address
 
     def create_wallet(self):
         account = Account.create()

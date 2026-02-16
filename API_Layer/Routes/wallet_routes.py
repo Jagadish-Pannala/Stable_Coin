@@ -142,3 +142,14 @@ def search_payees(customer_id: str, tenant_id: int, query: str, db: Session = De
         raise he
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+    
+@router.get("/admin-wallet", response_model=dict)
+def get_admin_wallet(user_wallet_address: str, db: Session = Depends(get_db)):
+    try:
+        service = WalletService(db)
+        result = service.get_admin_wallet(user_wallet_address)
+        return {
+            "address": result
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
