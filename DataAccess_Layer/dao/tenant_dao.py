@@ -14,16 +14,14 @@ class TenantDAO:
     # -----------------------------
     def create_tenant(
         self,
-        tenant_name: str,
-        rpc_url: str,
-        chain_id: int
-    ) -> TenantDetails:
+        request
+    ):
 
         tenant = TenantDetails(
-            tenant_name=tenant_name,
-            rpc_url=rpc_url,
-            chain_id=chain_id,
-            is_active=True,
+            tenant_name=request.tenant_name,
+            rpc_url=request.rpc_url,
+            chain_id=request.chain_id,
+            is_active=request.is_active,
             created_at=datetime.utcnow(),
             updated_at=datetime.utcnow(),
         )
@@ -43,6 +41,16 @@ class TenantDAO:
             .filter(
                 TenantDetails.id == tenant_id,
                 TenantDetails.is_active == True
+            )
+            .first()
+        )
+    
+    def get_tenant_by_id_only(self, tenant_id: int) -> Optional[TenantDetails]:
+
+        return (
+            self.db.query(TenantDetails)
+            .filter(
+                TenantDetails.id == tenant_id
             )
             .first()
         )
@@ -66,36 +74,32 @@ class TenantDAO:
     # -----------------------------
     def update_tenant(
         self,
-        tenant_id: int,
-        **kwargs
-    ) -> Optional[TenantDetails]:
+        tenant_id, request):
 
-        tenant = self.get_tenant_by_id(tenant_id)
+        tenant = self.get_tenant_by_id_only(tenant_id)
         if not tenant:
-            return None
+            return False
 
-        for key, value in kwargs.items():
-            if hasattr(tenant, key):
-                setattr(tenant, key, value)
-
+        tenant.tenant_name = request.tenant_name
+        tenant.rpc_url = request.rpc_url
+        tenant.chain_id = request.chain_id
         tenant.updated_at = datetime.utcnow()
         self.db.commit()
-        self.db.refresh(tenant)
-        return tenant
+        return True
 
     # -----------------------------
     # Soft delete tenant
     # -----------------------------
-    def deactivate_tenant(self, tenant_id: int) -> bool:
+    def deactivate_tenant(self, tenant_id, is_active):
 
-        tenant = self.get_tenant_by_id(tenant_id)
+        tenant = self.get_tenant_by_id_only(tenant_id)
         if not tenant:
             return False
 
-        tenant.is_active = False
+        tenant.is_active = is_active
         tenant.updated_at = datetime.utcnow()
         self.db.commit()
-        return True
+        return tenant
 
     # -----------------------------
     # Get all active tenants
