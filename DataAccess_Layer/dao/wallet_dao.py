@@ -111,3 +111,6 @@ class WalletDAO:
         if user:
             return user.tenant_id
         return None
+    def get_user_by_wallet_address(self, wallet_address: str) -> Optional[BankCustomerDetails]:
+        user = self.db.query(BankCustomerDetails).filter_by(wallet_address=wallet_address).first()
+        return user

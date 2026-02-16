@@ -15,7 +15,7 @@ import os
 from DataAccess_Layer.utils.session import get_db
 import logging
 from utils.redis_client import RedisClient
-
+from Business_Layer.utils.decrypt_password import decrypt_password
 
 logger = logging.getLogger(__name__)
 
@@ -316,7 +316,8 @@ class WalletService:
                     os.getenv("MAIN_WALLET_ADDRESS")
                 )
 
-                private_key = self.dao.get_private_key_by_address(from_address)
+                user = self.user_dao.get_admin_details(tenant_id)
+                private_key = decrypt_password(user.customer_id, user.tenant_id, db=self.db)
 
                 nonce = self.web3.eth.get_transaction_count(
                     from_address,
@@ -389,7 +390,7 @@ class WalletService:
                 admin = self.user_dao.get_admin_details(tenant_id)
                 admin_address = admin.wallet_address
             
-                private_key = admin.encrypted_private_key
+                private_key = decrypt_password(admin.customer_id, admin.tenant_id, db=self.db)
                 rpc_url = tenant.rpc_url
                 chain_id = tenant.chain_id
 
@@ -531,7 +532,10 @@ class WalletService:
 
                 # 3 Get private key
                 
-                private_key = self.dao.get_private_key_by_address(from_addr)
+                user = self.dao.get_user_by_wallet_address(from_addr)
+
+                private_key = decrypt_password(user.customer_id, user.tenant_id, db=self.db)
+
                 if not private_key:
                     raise HTTPException(404, "User not found")
                 
@@ -657,7 +661,9 @@ class WalletService:
                         f"{asset} not configured for tenant"
                     )
 
-                private_key = self.dao.get_private_key_by_address(from_addr)
+                user = self.dao.get_user_by_wallet_address(from_addr)
+
+                private_key = decrypt_password(user.customer_id, user.tenant_id, db=self.db)
                 if not private_key:
                     raise HTTPException(404, "Wallet not found")
 
