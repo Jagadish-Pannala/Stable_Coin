@@ -1,7 +1,6 @@
 import os
 import requests
 from dotenv import load_dotenv
-from utils.redis_client import RedisClient
 from DataAccess_Layer.dao.token_dao import TokenDAO
 from DataAccess_Layer.dao.authentication_dao import UserAuthDAO
 
@@ -19,18 +18,16 @@ class SepoliaTransactionService:
         self.alchemy_api_key = os.getenv("ALCHEMY_API_KEY")
         self.alchemy_url = f"https://eth-sepolia.g.alchemy.com/v2/{self.alchemy_api_key}"
 
-        self.redis = RedisClient()
-        self.user_dao =  UserAuthDAO(db)
+        self.user_dao = UserAuthDAO(db)
 
     # ---------------------------------------------------------
     # Classify transaction type
     # ---------------------------------------------------------
-    def _classify_tx(self, tx, wallet,main_wallet ):
+    def _classify_tx(self, tx, wallet, main_wallet):
 
         from_addr = (tx.get("from") or "").lower()
         to_addr = (tx.get("to") or "").lower()
         wallet = wallet.lower()
-
 
         if from_addr == ZERO_ADDRESS or from_addr == main_wallet.lower():
             return "CLAIMED"
@@ -100,33 +97,22 @@ class SepoliaTransactionService:
         }
 
     # ---------------------------------------------------------
-    # PUBLIC METHOD WITH REDIS CACHE
+    # PUBLIC METHOD WITHOUT REDIS CACHE
     # ---------------------------------------------------------
     def get_transactions(self, tenant_id, wallet_address, offset=0, limit=10):
 
         wallet_address = wallet_address.lower()
 
         main_wallet = self.user_dao.get_main_wallet_address(tenant_id)
-        # ========= STEP 1: CACHE CHECK =========
-        cached_all_txs = self.redis.get_full_chain_transactions()
 
-        if cached_all_txs is not None:
-            print("✅ Using cached Alchemy transactions")
-            return self._filter_transactions_for_address(
-                cached_all_txs,
-                wallet_address,
-                offset,
-                limit
-            )
-
-        # ========= STEP 2: GET TOKEN CONTRACTS =========
+        # ========= STEP 1: GET TOKEN CONTRACTS =========
         tokens = self.token_dao.get_tokens_by_tenant(tenant_id)
         contracts = [t.contract_address for t in tokens]
 
         if not contracts:
             return []
 
-        # ========= STEP 3: FETCH FROM ALCHEMY =========
+        # ========= STEP 2: FETCH FROM ALCHEMY =========
         all_tx = []
         page_key = None
 
@@ -144,7 +130,7 @@ class SepoliaTransactionService:
             if not page_key:
                 break
 
-        # ========= STEP 4: FORMAT =========
+        # ========= STEP 3: FORMAT =========
         formatted = []
 
         for tx in all_tx:
@@ -155,14 +141,11 @@ class SepoliaTransactionService:
                 "amount": tx.get("value"),
                 "asset": tx.get("asset"),
                 "timestamp": tx.get("metadata", {}).get("blockTimestamp"),
-                "transaction_type": self._classify_tx(tx, wallet_address,main_wallet ),
+                "transaction_type": self._classify_tx(tx, wallet_address, main_wallet),
                 "status": "SUCCESS",
             })
 
-        # ========= STEP 5: CACHE FULL CHAIN =========
-        self.redis.set_full_chain_transactions(formatted, ttl=300)
-
-        # ========= STEP 6: RETURN PAGINATED =========
+        # ========= STEP 4: RETURN PAGINATED =========
         return self._filter_transactions_for_address(
             formatted,
             wallet_address,
@@ -182,8 +165,8 @@ class SepoliaTransactionService:
     ):
         filtered = [
             tx for tx in all_transactions
-            if tx["from_address"].lower() == address
-            or tx["to_address"].lower() == address
+            if (tx.get("from_address") or "").lower() == address
+            or (tx.get("to_address") or "").lower() == address
         ]
 
         return filtered[offset:offset + limit]
