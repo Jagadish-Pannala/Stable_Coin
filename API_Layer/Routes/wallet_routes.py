@@ -126,6 +126,7 @@ async def get_fiat_balance_by_customer_id(
 def search_users(query: str, tenant_id: int, current_customer_id: str, db: Session = Depends(get_db)):
     try:
         service = WalletService(db)
+        print('entering route layer')
         return service.search_users(query, tenant_id, current_customer_id)
     except HTTPException as he:
         raise he

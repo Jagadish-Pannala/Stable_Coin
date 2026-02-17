@@ -79,7 +79,7 @@ class WalletService:
         self.tenant_dao = TenantDAO(self.db)
         self.token_dao = TokenDAO(self.db)
         self.user_dao = UserAuthDAO(self.db)
-        self.redis = RedisClient()
+        
 
 
     def _invalidate_transaction_cache(self):
@@ -124,6 +124,7 @@ class WalletService:
 
     def check_balance(self, address: str) -> BalResponse:
         try:
+            self.redis = RedisClient()
             if not self.web3.is_address(address):
                 raise HTTPException(status_code=400, detail="Invalid address")
 
@@ -278,6 +279,7 @@ class WalletService:
 
     def create_free_tokens(self, request):
         try:
+            self.redis = RedisClient()
             if not self.web3.is_address(request.address):
                 raise HTTPException(400, "Invalid address")
 
@@ -481,6 +483,7 @@ class WalletService:
 
     def transfer(self, req: TransferRequest):
         try:
+            self.redis = RedisClient()
             if not self.web3.is_address(req.from_address):
                 raise HTTPException(400, "Invalid address")
 
@@ -758,10 +761,9 @@ class WalletService:
     
     def search_users(self, query: str, tenant_id: int, current_customer_id: str):
         try:
-
+            print('entered service layer')
             # First search in bank_customer_details
             users = self.dao.get_users_by_search_query(query, tenant_id, current_customer_id)
-            # print("user details", users[0].customer_id if users else "No users found"   )
             if not users:
                 raise HTTPException(status_code=404, detail="No users found matching the query")
 

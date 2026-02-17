@@ -1,4 +1,5 @@
 
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 from DataAccess_Layer.models.model import BankCustomerDetails, CustomerPayee
 from typing import Optional, List ,Tuple
@@ -69,15 +70,17 @@ class WalletDAO:
     def get_users_by_search_query(self, query: str, tenant_id: int, current_customer_id: str) -> List[BankCustomerDetails]:
         search_pattern = f"%{query}%"
         users = self.db.query(BankCustomerDetails).filter(
-            (BankCustomerDetails.tenant_id == tenant_id) &
-            (BankCustomerDetails.customer_id != current_customer_id) & 
-            (BankCustomerDetails.customer_id.notilike("ADMI%")) & # Exclude admin accounts
-            (BankCustomerDetails.wallet_address != None) & # Exclude users without wallet addresses
-
-            (BankCustomerDetails.name.ilike(search_pattern)) |
-            (BankCustomerDetails.phone_number.ilike(search_pattern)) |
-            (BankCustomerDetails.wallet_address.ilike(search_pattern))
+            BankCustomerDetails.tenant_id == tenant_id,
+            BankCustomerDetails.customer_id != current_customer_id,
+            BankCustomerDetails.customer_id.notilike("ADMI%"),
+            BankCustomerDetails.wallet_address.isnot(None),
+            or_(
+                BankCustomerDetails.name.ilike(search_pattern),
+                BankCustomerDetails.phone_number.ilike(search_pattern),
+                BankCustomerDetails.wallet_address.ilike(search_pattern)
+            )
         ).all()
+        
         return users
     # check payees for particular customer and return results
     
