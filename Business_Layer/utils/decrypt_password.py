@@ -9,6 +9,7 @@ import json
 def decrypt_password(customer_id, tenant_id, db):
     user_dao = UserAuthDAO(db)
     user = user_dao.get_user_by_customer_id_tenant_id(customer_id, tenant_id)
+    print("User retrieved for decryption:", user)
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     if not user.is_wallet:
@@ -18,4 +19,5 @@ def decrypt_password(customer_id, tenant_id, db):
     account = Account.from_key(
         Account.decrypt(keystore_dict, password)
     )
+    print()
     return account.key.hex()

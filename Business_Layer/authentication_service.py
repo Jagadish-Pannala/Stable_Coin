@@ -15,6 +15,7 @@ from eth_account import Account
 from API_Layer.Interfaces.wallet_interface import FaucetRequest
 from web3 import Web3
 from DataAccess_Layer.dao.tenant_dao import TenantDAO
+from Business_Layer.utils.decrypt_password import decrypt_password
 
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -204,7 +205,7 @@ class AuthenticationService:
                         detail="Unable to create wallet: central wallet ETH balance too low"
                     )
                 
-            result = self.add_eth_wallet_creation(wallet_address, amount, main_wallet,rpc)
+            result = self.add_eth_wallet_creation(wallet_address, amount, main_wallet,rpc,tenant_id=request.tenant_id)
             result = self.user_dao.create_wallet_for_user(
                 request.customer_id,
                 request.tenant_id,
@@ -266,7 +267,7 @@ class AuthenticationService:
         return self.user_dao.get_all_users()
     
 
-    def add_eth_wallet_creation(self, to_address, amount, main_wallet, rpc):
+    def add_eth_wallet_creation(self, to_address, amount, main_wallet, rpc,tenant_id):
 
         # Create Web3 instance using provided RPC
         web3 = Web3(Web3.HTTPProvider(rpc))
@@ -276,9 +277,12 @@ class AuthenticationService:
             raise Exception("RPC connection failed")
         
         print(main_wallet)
-
+        customer_id = self.user_dao.get_admin_details(tenant_id).customer_id
+        print("Customer ID for main wallet:", customer_id)
         # Get private key from DB
-        private_key = self.wallet_dao.get_private_key_by_address(main_wallet)
+        private_key = decrypt_password(customer_id,tenant_id, self.db)
+
+        print("Private key retrieved for main wallet:", private_key)
 
         # Nonce from RPC network
         nonce = web3.eth.get_transaction_count(main_wallet, "pending")
