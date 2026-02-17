@@ -59,8 +59,8 @@ async def create_wallet_for_user(
     db: Session = Depends(get_db)
 ):
     try:
-        service = AuthenticationService(db)
-        result = service.create_wallet_for_user(request)
+        service = SecureWalletManager(db)
+        result = service.create_wallet_with_mnemonic(request)
         return CreateWalletResponse(
             wallet_address=result,
             message="Wallet created successfully"

@@ -318,6 +318,7 @@ class WalletService:
 
                 user = self.user_dao.get_admin_details(tenant_id)
                 private_key = decrypt_password(user.customer_id, user.tenant_id, db=self.db)
+                # print("private key", private_key)
 
                 nonce = self.web3.eth.get_transaction_count(
                     from_address,

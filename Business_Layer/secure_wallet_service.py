@@ -42,11 +42,7 @@ class SecureWalletManager:
 
             self.user_dao.create_wallet_for_user(request.customer_id, request.tenant_id, account.address, keystore_json)
 
-            return {
-                "address": account.address,
-                "keystore": keystore_json,
-                "mnemonic": mnemonic  # Optional — remove in production
-            }
+            return account.address
 
         except Exception as e:
             raise HTTPException(status_code=500, detail=str(e))
