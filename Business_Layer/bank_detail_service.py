@@ -106,6 +106,11 @@ class BankDetailService:
                     status_code=HTTPStatus.BAD_REQUEST,
                     detail="Payee with this wallet address already exists"
                 )
+            if request.phone_number and not re.match(r"^\+?[1-9]\d{1,14}$", request.phone_number):
+                raise HTTPException(
+                    status_code=HTTPStatus.BAD_REQUEST,
+                    detail="Invalid phone number format"
+                )
             payee_id = self.dao.create_payee(user.id, request)
             return payee_id.id
         except HTTPException as he: 

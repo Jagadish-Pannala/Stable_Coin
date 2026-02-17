@@ -13,6 +13,7 @@ router = APIRouter()
 @router.get("/customer/{customer_id}", response_model=Userdetails)
 async def get_user_details(
     customer_id: str,
+    tenant_id: int,
     db: Session = Depends(get_db)
 ):
     try:
@@ -20,7 +21,7 @@ async def get_user_details(
         service = BankDetailService(db)
 
         user = await run_in_threadpool(
-            service.user_dao.get_user_by_customer_id, customer_id)
+            service.user_dao.get_user_by_customer_id_tenant_id, customer_id, tenant_id)
         if not user:
             raise HTTPException(
                 status_code=HTTPStatus.NOT_FOUND,
