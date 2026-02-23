@@ -21,7 +21,7 @@ def encrypt_existing_private_key(private_key: str, password: str):
         raise Exception(f"Encryption failed: {str(e)}")
 
 private_key = ""
-password = "Paves@123"
+password = ""
 
 result = encrypt_existing_private_key(private_key, password)
 
