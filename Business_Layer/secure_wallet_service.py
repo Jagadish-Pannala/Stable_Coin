@@ -82,6 +82,29 @@ class SecureWalletManager:
                         status_code=400,
                         detail="Unable to create wallet: central wallet ETH balance too low"
                     )
+            elif request.tenant_id == 3:
+                amount = Decimal("0.25")  # 0.5 POL (MATIC)
+
+                # Connect to Polygon RPC
+                web3_rpc = Web3(Web3.HTTPProvider(rpc))
+
+                if not web3_rpc.is_connected():
+                    raise HTTPException(
+                        status_code=500,
+                        detail="Polygon RPC connection failed"
+                    )
+
+                # Get main wallet POL balance (native token)
+                balance_wei = web3_rpc.eth.get_balance(main_wallet)
+                balance_pol = Decimal(web3_rpc.from_wei(balance_wei, "ether"))
+
+                # Prevent central wallet going below 28 POL
+                if balance_pol - amount < Decimal("28"):
+                    raise HTTPException(
+                        status_code=400,
+                        detail="Unable to create wallet: central wallet POL balance too low"
+                    )
+
             
             self.user_dao.create_wallet_for_user(
                 request.customer_id,
