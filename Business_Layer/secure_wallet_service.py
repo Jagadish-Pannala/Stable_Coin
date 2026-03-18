@@ -76,8 +76,8 @@ class SecureWalletManager:
                 balance_wei = web3_rpc.eth.get_balance(main_wallet)
                 balance_eth = Decimal(web3_rpc.from_wei(balance_wei, "ether"))
 
-                # Prevent central wallet going below 28 ETH
-                if balance_eth - amount < Decimal("28"):
+                # Prevent central wallet going below 1.5 ETH
+                if balance_eth - amount < Decimal("0.5"):
                     raise HTTPException(
                         status_code=400,
                         detail="Unable to create wallet: central wallet ETH balance too low"
