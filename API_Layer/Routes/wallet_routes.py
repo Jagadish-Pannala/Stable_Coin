@@ -10,7 +10,7 @@ from DataAccess_Layer.utils.session import get_db
 router = APIRouter()
 
 @router.get("/check-contract")
-def checK_contract(address: str):
+def check_contract(address: str):
     try:
         service = WalletService()
         result = service.check_contract(address)

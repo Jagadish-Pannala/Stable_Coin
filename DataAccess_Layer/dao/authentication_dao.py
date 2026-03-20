@@ -31,11 +31,10 @@ class UserAuthDAO:
         return self.db.query(BankCustomerDetails).filter_by(customer_id=customer_id, tenant_id=tenant_id).first()
     
     
-    def checking_customer_existing(self, customer_id, tenant_id, phone_number):
+    def checking_customer_existing(self, mail, phone_number):
         return self.db.query(BankCustomerDetails).filter(
-            BankCustomerDetails.tenant_id == tenant_id,
             (
-                (BankCustomerDetails.customer_id == customer_id) |
+                (BankCustomerDetails.mail == mail) |
                 (BankCustomerDetails.phone_number == phone_number)
             )
         ).first()

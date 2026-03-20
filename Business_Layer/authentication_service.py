@@ -108,15 +108,12 @@ class AuthenticationService:
 
     def create_user(self, tenant_id, mail, name, password, phone_number, is_active=True, fiat_bank_balance=0.00):
         try:
+            checking_customer = self.user_dao.checking_customer_existing(mail, phone_number)
+            if checking_customer:
+                raise HTTPException(status_code=400, detail="Email or phone number already exists")
             customer_id = self.generate_customer_id(tenant_id)
             bank_account_number = self.generate_bank_account_number()
             print(f"Generated customer_id: {customer_id}, bank_account_number: {bank_account_number}")
-            existing_customer = self.user_dao.checking_customer_existing(customer_id, tenant_id, phone_number)
-            if existing_customer:
-                raise HTTPException(
-                    status_code=400,
-                    detail="Customer ID already exists for this tenant or phone number already registered"
-                )
             if not self._is_valid_email(mail):
                 raise HTTPException(
                     status_code=400,
